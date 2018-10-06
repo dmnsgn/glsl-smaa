@@ -1,0 +1,48 @@
+{
+  "name": "glsl-smaa",
+  "version": "1.0.0",
+  "description": "SMAA (Enhanced Subpixel Morphological Antialiasing) post-processing; WebGL (OpenGL ES 2.0) implementation with no fluff.",
+  "main": "index.glsl",
+  "scripts": {
+    "start": "budo demo/index.js --open --live -- -t glslify",
+    "build": "browserify demo/index.js -t glslify | uglifyjs -c > demo/bundle.js"
+  },
+  "author": "Damien Seguin <https://twitter.com/dmnsgn>",
+  "homepage": "https://github.com/dmnsgn/glsl-smaa",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dmnsgn/glsl-smaa"
+  },
+  "keywords": [
+    "glsl",
+    "aa",
+    "smaa",
+    "antialiasing",
+    "glslify",
+    "webgl",
+    "shader"
+  ],
+  "issues": {
+    "url": "https://github.com/dmnsgn/glsl-smaa/issues"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "async-preloader": "^4.0.1",
+    "budo": "^11.3.2",
+    "bunny": "^1.0.1",
+    "dat.gui": "^0.7.2",
+    "geom-normals": "^1.0.1",
+    "gl-matrix": "^2.8.1",
+    "glsl-diffuse-oren-nayar": "^1.0.2",
+    "glsl-fxaa": "^3.0.0",
+    "glsl-specular-blinn-phong": "^1.0.2",
+    "glslify": "^6.3.1",
+    "orbit-controls": "^1.2.4",
+    "parse-hdr": "^1.0.0",
+    "perspective-camera": "^2.0.1",
+    "primitive-cube": "^2.0.1",
+    "primitive-sphere": "^3.0.0",
+    "regl": "^1.3.7",
+    "uglify-es": "^3.3.9"
+  }
+}
