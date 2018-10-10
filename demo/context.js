@@ -1,6 +1,7 @@
 const createRegl = require("regl");
 
 const regl = createRegl({
+  pixelRatio: 1,
   extensions: [
     "WEBGL_depth_texture",
     "oes_texture_float",
