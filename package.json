@@ -2,10 +2,10 @@
   "name": "glsl-smaa",
   "version": "1.0.0",
   "description": "SMAA (Enhanced Subpixel Morphological Antialiasing) post-processing; WebGL (OpenGL ES 2.0) implementation with no fluff.",
-  "main": "index.glsl",
+  "main": "textures.js",
   "scripts": {
-    "start": "budo demo/index.js --open --live -- -t glslify",
-    "build": "browserify demo/index.js -t glslify | uglifyjs -c > demo/bundle.js"
+    "start": "budo demo/index.js:bundle.js --open --live -- -t glslify",
+    "build": "browserify demo/index.js -t glslify | uglifyjs -c > bundle.js"
   },
   "author": "Damien Seguin <https://twitter.com/dmnsgn>",
   "homepage": "https://github.com/dmnsgn/glsl-smaa",
