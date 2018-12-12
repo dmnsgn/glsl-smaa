@@ -8,7 +8,7 @@ SMAA (Enhanced Subpixel Morphological Antialiasing) post-processing; WebGL (Open
 npm install glsl-smaa
 ```
 
-[![NPM](https://nodei.co/npm/glsl-smaa.png)](https://nodei.co/npm/glsl-smaa/)
+[![NPM](https://nodei.co/npm/glsl-smaa.png)](https://nodei.co/npm/glsl-smaa/) [![Greenkeeper badge](https://badges.greenkeeper.io/dmnsgn/glsl-smaa.svg)](https://greenkeeper.io/)
 
 ## Usage
 
