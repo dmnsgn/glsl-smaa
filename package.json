@@ -36,7 +36,7 @@
     "glsl-diffuse-oren-nayar": "^1.0.2",
     "glsl-fxaa": "^3.0.0",
     "glsl-specular-blinn-phong": "^1.0.2",
-    "glslify": "^6.3.1",
+    "glslify": "^7.0.0",
     "orbit-controls": "^1.2.4",
     "parse-hdr": "^1.0.0",
     "perspective-camera": "^2.0.1",
