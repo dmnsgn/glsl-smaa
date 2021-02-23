@@ -168,6 +168,8 @@ vec2 SMAAAreaDiag(sampler2D areaTex, vec2 dist, vec2 e, float offset) {
 
   // Move to proper place, according to the subpixel offset:
   texcoord.y += SMAA_AREATEX_SUBTEX_SIZE * offset;
+  // Flip y coord because glsl and hlsl has reversed y on texutre sampling
+  texcoord.y *= -1;
 
   // Do it!
   return SMAA_AREATEX_SELECT(texture2D(areaTex, texcoord)); // LinearSampler
@@ -263,6 +265,8 @@ float SMAASearchLength(sampler2D searchTex, vec2 e, float offset) {
   // (We use SMAA_SEARCHTEX_PACKED_SIZE because the texture is cropped)
   scale *= 1.0 / SMAA_SEARCHTEX_PACKED_SIZE;
   bias *= 1.0 / SMAA_SEARCHTEX_PACKED_SIZE;
+  // Flip y coord because glsl and hlsl has reversed y on texutre sampling
+  e.y *= -1;
 
   // Lookup the search texture:
   return SMAA_SEARCHTEX_SELECT(texture2D(searchTex, mad(scale, e, bias))); // LinearSampler
@@ -345,6 +349,8 @@ vec2 SMAAArea(sampler2D areaTex, vec2 dist, float e1, float e2, float offset) {
 
   // Move to proper place, according to the subpixel offset:
   texcoord.y = mad(SMAA_AREATEX_SUBTEX_SIZE, offset, texcoord.y);
+  // Flip y coord because glsl and hlsl has reversed y on texutre sampling
+  texcoord.y *= -1;
 
   // Do it!
   return SMAA_AREATEX_SELECT(texture2D(areaTex, texcoord)); // LinearSampler
