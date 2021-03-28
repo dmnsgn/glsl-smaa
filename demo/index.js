@@ -244,14 +244,16 @@ function frameCatch(frameFunc) {
 
   const searchTexture = await loadTexture(SMAATextures.search, {
     format: "rgba",
-    type: "half float"
+    type: "half float",
+    flipY: true,
   });
   TEXTURES.set("searchTexture", searchTexture);
 
   const areaTexture = await loadTexture(SMAATextures.area, {
     min: "linear",
     format: "rgba",
-    type: "half float"
+    type: "half float",
+    flipY: true,
   });
   TEXTURES.set("areaTexture", areaTexture);
 
