@@ -17,6 +17,7 @@ const {
   MATERIAL_FRAG,
   LAYER_FRAG,
   FXAA_FRAG,
+  PRESETS,
   EDGES_VERT,
   LUMA_EDGES_FRAG,
   COLOR_EDGES_FRAG,
@@ -117,10 +118,16 @@ const bunny = regl({
   elements: bunnyGeometry.cells
 });
 
+const PRESET = `#define SMAA_PRESET_ULTRA`;
+
 // SMAA
 const SMAADepthEdges = regl({
-  vert: EDGES_VERT,
-  frag: DEPTH_EDGES_FRAG,
+  vert: `${PRESET}
+  ${PRESETS}
+  ${EDGES_VERT}`,
+  frag: `${PRESET}
+  ${PRESETS}
+  ${DEPTH_EDGES_FRAG}`,
   attributes: {
     aPosition: [-4, -4, 4, -4, 0, 4]
   },
@@ -135,8 +142,12 @@ const SMAADepthEdges = regl({
   count: 3
 });
 const SMAALumaEdges = regl({
-  vert: EDGES_VERT,
-  frag: LUMA_EDGES_FRAG,
+  vert: `${PRESET}
+  ${PRESETS}
+  ${EDGES_VERT}`,
+  frag: `${PRESET}
+  ${PRESETS}
+  ${LUMA_EDGES_FRAG}`,
   attributes: {
     aPosition: [-4, -4, 4, -4, 0, 4]
   },
@@ -151,10 +162,13 @@ const SMAALumaEdges = regl({
   count: 3
 });
 const SMAAColorEdges = regl({
-  vert: EDGES_VERT,
-  frag: `
-  #define SMAA_THRESHOLD 0.1
-  #define SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR 2.0
+  vert: `${PRESET}
+  ${PRESETS}
+  ${EDGES_VERT}`,
+  frag: `${PRESET}
+  ${PRESETS}
+  // #define SMAA_THRESHOLD 0.1
+  // #define SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR 2.0
   ${COLOR_EDGES_FRAG}
   `,
   attributes: {
@@ -172,10 +186,12 @@ const SMAAColorEdges = regl({
 });
 
 const SMAAWeights = regl({
-  vert: `#define SMAA_PRESET_ULTRA
+  vert: `${PRESET}
+  ${PRESETS}
   ${SMAA_WEIGHTS_VERT}
   `,
-  frag: `#define SMAA_PRESET_ULTRA
+  frag: `${PRESET}
+  ${PRESETS}
   ${SMAA_WEIGHTS_FRAG}
   `,
   attributes: {
@@ -195,8 +211,12 @@ const SMAAWeights = regl({
 });
 
 const SMAABlend = regl({
-  vert: SMAA_BLEND_VERT,
-  frag: SMAA_BLEND_FRAG,
+  vert: `${PRESET}
+  ${PRESETS}
+  ${SMAA_BLEND_VERT}`,
+  frag: `${PRESET}
+  ${PRESETS}
+  ${SMAA_BLEND_FRAG}`,
   attributes: {
     aPosition: [-4, -4, 4, -4, 0, 4]
   },

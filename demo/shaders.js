@@ -14,6 +14,7 @@ const LAYER_FRAG = glsl("./shaders/layer.frag");
 const FXAA_FRAG = glsl("./shaders/fxaa.frag");
 
 // Lib
+const PRESETS = glsl("../presets.glsl");
 const EDGES_VERT = glsl("../edges.vert");
 const LUMA_EDGES_FRAG = glsl("../edges-luma.frag");
 const COLOR_EDGES_FRAG = glsl("../edges-color.frag");
@@ -35,6 +36,7 @@ module.exports = {
   MATERIAL_FRAG,
   LAYER_FRAG,
   FXAA_FRAG,
+  PRESETS,
   EDGES_VERT,
   LUMA_EDGES_FRAG,
   COLOR_EDGES_FRAG,
