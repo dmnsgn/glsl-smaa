@@ -1,4 +1,4 @@
-const { mat3, mat4 } = require("gl-matrix");
+import { mat3, mat4 } from "gl-matrix";
 
 const inverseModelViewMatrix = mat4.create();
 
@@ -11,7 +11,7 @@ class Mesh {
   }
 
   update(camera) {
-    mat4.multiply(this.modelViewMatrix, camera.view, this.modelMatrix);
+    mat4.multiply(this.modelViewMatrix, camera.viewMatrix, this.modelMatrix);
 
     mat4.invert(inverseModelViewMatrix, this.modelViewMatrix);
     mat3.fromMat4(this.normalMatrix, inverseModelViewMatrix);
@@ -19,6 +19,6 @@ class Mesh {
   }
 }
 
-module.exports = function createMesh(...args) {
+export default function createMesh(...args) {
   return new Mesh(...args);
-};
+}

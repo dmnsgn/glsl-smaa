@@ -1,14 +1,26 @@
-# glsl-smaa [![stable](http://badges.github.io/stability-badges/dist/stable.svg)](http://github.com/badges/stability-badges)
+# glsl-smaa
+
+[![npm version](https://img.shields.io/npm/v/glsl-smaa)](https://www.npmjs.com/package/glsl-smaa)
+[![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)](https://www.npmjs.com/package/glsl-smaa)
+[![npm minzipped size](https://img.shields.io/bundlephobia/minzip/glsl-smaa)](https://www.npmjs.com/package/glsl-smaa)
+[![dependencies](https://img.shields.io/david/dmnsgn/glsl-smaa)](https://github.com/dmnsgn/glsl-smaa/blob/main/package.json)
+[![types](https://img.shields.io/npm/types/glsl-smaa)](https://github.com/microsoft/TypeScript)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-fa6673.svg)](https://conventionalcommits.org)
+[![styled with prettier](https://img.shields.io/badge/styled_with-Prettier-f8bc45.svg?logo=prettier)](https://github.com/prettier/prettier)
+[![linted with eslint](https://img.shields.io/badge/linted_with-ES_Lint-4B32C3.svg?logo=eslint)](https://github.com/eslint/eslint)
+[![license](https://img.shields.io/github/license/dmnsgn/glsl-smaa)](https://github.com/dmnsgn/glsl-smaa/blob/main/LICENSE.md)
 
 SMAA (Enhanced Subpixel Morphological Antialiasing) post-processing; WebGL (OpenGL ES 2.0) implementation with no fluff. All credit goes to the incredible work [here (iryoku)](http://www.iryoku.com/smaa/) and [there (beakbeak)](https://github.com/beakbeak/smaa-webgl).
+
+[![paypal](https://img.shields.io/badge/donate-paypal-informational?logo=paypal)](https://paypal.me/dmnsgn)
+[![coinbase](https://img.shields.io/badge/donate-coinbase-informational?logo=coinbase)](https://commerce.coinbase.com/checkout/56cbdf28-e323-48d8-9c98-7019e72c97f3)
+[![twitter](https://img.shields.io/twitter/follow/dmnsgn?style=social)](https://twitter.com/dmnsgn)
 
 ## Installation
 
 ```bash
 npm install glsl-smaa
 ```
-
-[![NPM](https://nodei.co/npm/glsl-smaa.png)](https://nodei.co/npm/glsl-smaa/)
 
 ## Usage
 
@@ -54,6 +66,7 @@ Uniforms required for all shaders:
 
 ```js
 const frag = `#define SMAA_PRESET_HIGH
+${PRESETS}
 ${SMAA_WEIGHTS_FRAG}
 `;
 ```
@@ -72,7 +85,7 @@ You can use one of the 3 following edge detection method:
 
 - Color: the most expensive one but catches chroma-only edges.
 
-![](https://raw.githubusercontent.com/dmnsgn/glsl-smaa/master/demo/preview-edges.gif)
+![](https://raw.githubusercontent.com/dmnsgn/glsl-smaa/main/demo/preview-edges.gif)
 
 Defines:
 
@@ -110,7 +123,7 @@ Uniforms:
 
 ### `smaa-weights.(vert|frag)`
 
-Defines:
+Defines from `presets.glsl`:
 
 ```glsl
 # Use presets:
@@ -164,4 +177,4 @@ Copyright (C) 2013 Belen Masia (bmasia@unizar.es)
 Copyright (C) 2013 Fernando Navarro (fernandn@microsoft.com)
 Copyright (C) 2013 Diego Gutierrez (diegog@unizar.es)
 
-MIT. See [license file](https://github.com/dmnsgn/glsl-smaa/blob/master/LICENSE.md).
+MIT. See [license file](https://github.com/dmnsgn/glsl-smaa/blob/main/LICENSE.md).

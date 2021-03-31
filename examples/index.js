@@ -1,16 +1,13 @@
-const { mat4 } = require("gl-matrix");
-const dat = require("dat.gui");
-const createCamera = require("perspective-camera");
-const createOrbitControls = require("orbit-controls");
+import { mat4 } from "gl-matrix";
+import dat from "dat.gui";
+import { PerspectiveCamera, Controls } from "cameras";
 
-const regl = require("./context.js");
-const createMesh = require("./mesh.js");
-
-const FBO = require("./fbos.js");
-const COMMANDS = require("./commands.js");
-const { loadTexture, loadHdrTexture } = require("./utils.js");
-
-const SMAATextures = require("../textures.js");
+import regl from "./context.js";
+import createMesh from "./mesh.js";
+import FBO from "./fbos.js";
+import COMMANDS, { ready as commandsReady } from "./commands.js";
+import { loadTexture, loadHdrTexture } from "./utils.js";
+import SMAATextures from "../index.js";
 
 /**
  * SETUP
@@ -18,14 +15,16 @@ const SMAATextures = require("../textures.js");
 const TEXTURES = new Map();
 
 // Camera and controls
-const camera = createCamera({
+const camera = new PerspectiveCamera({
   fov: Math.PI / 4,
   near: 0.001,
   far: 100,
-  viewport: [0, 0, window.innerWidth, window.innerHeight]
+  viewport: [0, 0, window.innerWidth, window.innerHeight],
 });
-const controls = createOrbitControls({
-  position: [0, 0, 0.4]
+const controls = new Controls({
+  element: regl._gl.canvas,
+  camera,
+  position: [0, 0, 0.4],
 });
 
 // Entities
@@ -62,7 +61,7 @@ const options = {
   aa: "smaa",
   separateBackground: true,
   edges: "color",
-  output: "color"
+  output: "color",
 };
 gui.add(options, "aa", ["browser", "fxaa", "smaa"]).name("AA");
 gui.add(options, "edges", ["depth", "luma", "color"]).name("SMAA edges");
@@ -82,39 +81,41 @@ const drawMeshes = () => {
     uModelMatrix: cube.modelMatrix,
     uModelViewMatrix: cube.modelViewMatrix,
     uNormalMatrix: cube.normalMatrix,
-    uProjectionMatrix: camera.projection,
+    uProjectionMatrix: camera.projectionMatrix,
     uCameraPosition: camera.position,
     uDiffuseColor: [0.0, 0.0, 0.0, 1.0],
     uColorMap: TEXTURES.get("checkerTexture"),
     // uColorMap: TEXTURES.get("colorTexture"),
-    uEnvMap: TEXTURES.get("envMap")
+    uEnvMap: TEXTURES.get("envMap"),
   });
   COMMANDS.sphere({
     uModelMatrix: sphere.modelMatrix,
     uModelViewMatrix: sphere.modelViewMatrix,
     uNormalMatrix: sphere.normalMatrix,
-    uProjectionMatrix: camera.projection,
+    uProjectionMatrix: camera.projectionMatrix,
     uCameraPosition: camera.position,
     uDiffuseColor: [0.0, 0.0, 0.0, 1.0],
     uColorMap: TEXTURES.get("colorTexture"),
     // uColorMap: TEXTURES.get("checkerTexture"),
-    uEnvMap: TEXTURES.get("envMap")
+    uEnvMap: TEXTURES.get("envMap"),
   });
   COMMANDS.bunny({
     uModelMatrix: bunny.modelMatrix,
     uModelViewMatrix: bunny.modelViewMatrix,
     uNormalMatrix: bunny.normalMatrix,
-    uProjectionMatrix: camera.projection,
+    uProjectionMatrix: camera.projectionMatrix,
     uCameraPosition: camera.position,
     uDiffuseColor: [0.3, 0.3, 0.3, 1.0],
-    uEnvMap: TEXTURES.get("envMap")
+    uEnvMap: TEXTURES.get("envMap"),
   });
 };
 
 const frame = ({ viewportWidth, viewportHeight }) => {
   // Update controls and camera
+
   controls.update();
-  controls.copyInto(camera.position, camera.direction, camera.up);
+  camera.position = controls.position;
+  camera.target = controls.target;
   camera.update();
 
   // Clear back buffer
@@ -126,8 +127,8 @@ const frame = ({ viewportWidth, viewportHeight }) => {
     FBO.background.use(() => {
       COMMANDS.clear();
       COMMANDS.envMap({
-        uCameraView: camera.view,
-        uEnvMap: TEXTURES.get("envMap")
+        uCameraView: camera.viewMatrix,
+        uEnvMap: TEXTURES.get("envMap"),
       });
     });
   }
@@ -138,8 +139,8 @@ const frame = ({ viewportWidth, viewportHeight }) => {
     COMMANDS.clear(true);
     if (!options.separateBackground) {
       COMMANDS.envMap({
-        uCameraView: camera.view,
-        uEnvMap: TEXTURES.get("envMap")
+        uCameraView: camera.viewMatrix,
+        uEnvMap: TEXTURES.get("envMap"),
       });
     }
     drawMeshes();
@@ -152,7 +153,7 @@ const frame = ({ viewportWidth, viewportHeight }) => {
     COMMANDS.depth({
       depthTexture: FBO.color.depthStencil,
       near: camera.near,
-      far: camera.far
+      far: camera.far,
     });
   });
 
@@ -195,7 +196,7 @@ const frame = ({ viewportWidth, viewportHeight }) => {
       if (TEXTURES.has("searchTexture") && TEXTURES.has("areaTexture")) {
         COMMANDS.SMAAWeights({
           searchTex: TEXTURES.get("searchTexture"),
-          areaTex: TEXTURES.get("areaTexture")
+          areaTex: TEXTURES.get("areaTexture"),
         });
       }
     });
@@ -210,7 +211,7 @@ const frame = ({ viewportWidth, viewportHeight }) => {
   if (options.separateBackground) {
     COMMANDS.layers({
       background: FBO.background,
-      foreground: FBO[options.output]
+      foreground: FBO[options.output],
     });
   } else {
     COMMANDS.toTexture({ texture: FBO[options.output] });
@@ -229,34 +230,61 @@ function frameCatch(frameFunc) {
 }
 
 /**
+ * EVENTS
+ */
+
+const onResize = () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+};
+window.addEventListener("resize", onResize);
+onResize();
+
+/**
  * LOAD & START
  */
 (async () => {
-  const hdrTexture = await loadHdrTexture("demo/assets/studio_small_03_1k.hdr");
+  const hdrTexture = await loadHdrTexture(
+    new URL("assets/studio_small_03_1k.hdr", import.meta.url)
+  );
   TEXTURES.set("envMap", hdrTexture);
 
-  const colorTexture = await loadTexture("demo/assets/plastic-basecolor.png");
-  // const colorTexture = await loadTexture("demo/assets/diffuse.png");
+  const colorTexture = await loadTexture(
+    new URL("assets/plastic-basecolor.png", import.meta.url)
+  );
+  // const colorTexture = await loadTexture(new URL("assets/diffuse.png",import.meta.url));
   TEXTURES.set("colorTexture", colorTexture);
 
-  const checkerTexture = await loadTexture("demo/assets/checker.jpg");
+  const checkerTexture = await loadTexture(
+    new URL("assets/checker.jpg", import.meta.url)
+  );
   TEXTURES.set("checkerTexture", checkerTexture);
 
   const searchTexture = await loadTexture(SMAATextures.search, {
     format: "rgba",
-    type: "half float",
+    type: "float",
+    min: "nearest",
+    mag: "nearest",
     flipY: true,
+    mipmap: false,
   });
   TEXTURES.set("searchTexture", searchTexture);
 
   const areaTexture = await loadTexture(SMAATextures.area, {
     min: "linear",
     format: "rgba",
-    type: "half float",
+    type: "float",
     flipY: true,
+    mipmap: false,
   });
   TEXTURES.set("areaTexture", areaTexture);
 
-  // RAF
-  frameCatch(frame);
+  try {
+    await commandsReady();
+
+    // RAF
+    frameCatch(frame);
+  } catch (error) {
+    console.error(error);
+  }
 })();

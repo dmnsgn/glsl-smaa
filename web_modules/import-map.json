@@ -1,0 +1,15 @@
+{
+  "imports": {
+    "async-preloader": "./async-preloader.js",
+    "bunny": "./bunny.js",
+    "cameras": "./cameras.js",
+    "core-js": "./core-js.js",
+    "dat.gui": "./dat.gui.js",
+    "es-module-shims": "./es-module-shims.js",
+    "geom-normals": "./geom-normals.js",
+    "gl-matrix": "./gl-matrix.js",
+    "parse-hdr": "./parse-hdr.js",
+    "primitive-geometry": "./primitive-geometry.js",
+    "regl": "./regl.js"
+  }
+}

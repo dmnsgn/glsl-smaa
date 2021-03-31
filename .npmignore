@@ -1,4 +1,10 @@
-*.gif
-bundle.js
+web_modules
+examples
+docs
+coverage
+test
+.github
+screenshot.*
 index.html
-demo
+tsconfig.json
+.editorconfig

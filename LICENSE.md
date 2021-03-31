@@ -4,7 +4,7 @@ Copyright (C) 2013 Belen Masia (bmasia@unizar.es)
 Copyright (C) 2013 Fernando Navarro (fernandn@microsoft.com)
 Copyright (C) 2013 Diego Gutierrez (diegog@unizar.es)
 
-Copyright (C) 2018 the internet and Damien Seguin
+Copyright (C) 2018 Damien Seguin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

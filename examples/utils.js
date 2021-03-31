@@ -1,7 +1,7 @@
-const AsyncPreloader = require("async-preloader").default;
-const parseHdr = require("parse-hdr");
+import AsyncPreloader from "async-preloader";
+import parseHdr from "parse-hdr";
 
-const regl = require("./context.js");
+import regl from "./context.js";
 
 async function loadTexture(src, options = {}) {
   const image = await AsyncPreloader.loadImage({ src });
@@ -24,7 +24,4 @@ async function loadHdrTexture(src, options) {
   return texture;
 }
 
-module.exports = {
-  loadTexture,
-  loadHdrTexture
-};
+export { loadTexture, loadHdrTexture };
