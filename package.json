@@ -1,6 +1,6 @@
 {
   "name": "glsl-smaa",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "SMAA (Enhanced Subpixel Morphological Antialiasing) post-processing; WebGL (OpenGL ES 2.0) implementation with no fluff.",
   "keywords": [
     "glsl",
