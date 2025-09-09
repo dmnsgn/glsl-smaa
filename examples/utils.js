@@ -5,9 +5,7 @@ import regl from "./context.js";
 
 async function loadTexture(src, options = {}) {
   const image = await AsyncPreloader.loadImage({ src });
-  const bitmap = await createImageBitmap(image);
-
-  const texture = regl.texture({ data: bitmap, ...options });
+  const texture = regl.texture({ data: image, ...options });
   texture.resize(image.width, image.height);
 
   return texture;

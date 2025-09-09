@@ -33,8 +33,8 @@ const cube = createMesh(
     new Float32Array(16),
     [0, 0, 0, 1],
     [0, 0, -1],
-    [1, 1, 1]
-  )
+    [1, 1, 1],
+  ),
 );
 
 const sphere = createMesh(
@@ -42,8 +42,8 @@ const sphere = createMesh(
     new Float32Array(16),
     [0, 0, 0, 1],
     [-0.25, 0, 0],
-    [0.3, 0.3, 0.3]
-  )
+    [0.3, 0.3, 0.3],
+  ),
 );
 
 const bunny = createMesh(
@@ -51,8 +51,8 @@ const bunny = createMesh(
     new Float32Array(16),
     [0, 0, 0, 1],
     [0.25, -0.25, 0],
-    [0.05, 0.05, 0.05]
-  )
+    [0.05, 0.05, 0.05],
+  ),
 );
 
 // GUI
@@ -245,18 +245,18 @@ onResize();
  */
 (async () => {
   const hdrTexture = await loadHdrTexture(
-    new URL("assets/studio_small_03_1k.hdr", import.meta.url)
+    new URL("assets/studio_small_03_1k.hdr", import.meta.url),
   );
   TEXTURES.set("envMap", hdrTexture);
 
   const colorTexture = await loadTexture(
-    new URL("assets/plastic-basecolor.png", import.meta.url)
+    new URL("assets/plastic-basecolor.png", import.meta.url),
   );
   // const colorTexture = await loadTexture(new URL("assets/diffuse.png",import.meta.url));
   TEXTURES.set("colorTexture", colorTexture);
 
   const checkerTexture = await loadTexture(
-    new URL("assets/checker.jpg", import.meta.url)
+    new URL("assets/checker.jpg", import.meta.url),
   );
   TEXTURES.set("checkerTexture", checkerTexture);
 
@@ -274,7 +274,7 @@ onResize();
     min: "linear",
     format: "rgba",
     type: "float",
-    flipY: true,
+    flipY: false,
     mipmap: false,
   });
   TEXTURES.set("areaTexture", areaTexture);
