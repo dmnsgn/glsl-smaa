@@ -1,9 +1,7 @@
 import {
   PRESETS,
-  EDGES_VERT,
-  EDGES_LUMA_FRAG,
-  EDGES_COLOR_FRAG,
-  EDGES_DEPTH_FRAG,
+  SMAA_EDGES_VERT,
+  SMAA_EDGES_FRAG,
   SMAA_WEIGHTS_VERT,
   SMAA_WEIGHTS_FRAG,
   SMAA_BLEND_VERT,
@@ -140,10 +138,11 @@ const ready = async () =>
     const SMAADepthEdges = regl({
       vert: `${PRESET}
     ${PRESETS}
-    ${EDGES_VERT}`,
+    ${SMAA_EDGES_VERT}`,
       frag: `${PRESET}
     ${PRESETS}
-    ${EDGES_DEPTH_FRAG}`,
+    #define SMAA_EDGES_DEPTH
+    ${SMAA_EDGES_FRAG}`,
       attributes: {
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
@@ -163,10 +162,11 @@ const ready = async () =>
     const SMAALumaEdges = regl({
       vert: `${PRESET}
     ${PRESETS}
-    ${EDGES_VERT}`,
+    ${SMAA_EDGES_VERT}`,
       frag: `${PRESET}
     ${PRESETS}
-    ${EDGES_LUMA_FRAG}`,
+    #define SMAA_EDGES_LUMA
+    ${SMAA_EDGES_FRAG}`,
       attributes: {
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
@@ -186,12 +186,13 @@ const ready = async () =>
     const SMAAColorEdges = regl({
       vert: `${PRESET}
     ${PRESETS}
-    ${EDGES_VERT}`,
+    ${SMAA_EDGES_VERT}`,
       frag: `${PRESET}
     ${PRESETS}
     // #define SMAA_THRESHOLD 0.1
     // #define SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR 2.0
-    ${EDGES_COLOR_FRAG}
+    #define SMAA_EDGES_COLOR
+    ${SMAA_EDGES_FRAG}
     `,
       attributes: {
         aPosition: [-4, -4, 4, -4, 0, 4],

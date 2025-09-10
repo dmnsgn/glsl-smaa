@@ -8,10 +8,8 @@ export { SMAATextures };
 
 export { default as PRESETS } from "./presets.glsl.js";
 
-export { default as EDGES_VERT } from "./edges.vert.js";
-export { default as EDGES_COLOR_FRAG } from "./edges-color.frag.js";
-export { default as EDGES_DEPTH_FRAG } from "./edges-depth.frag.js";
-export { default as EDGES_LUMA_FRAG } from "./edges-luma.frag.js";
+export { default as SMAA_EDGES_VERT } from "./smaa-edges.vert.js";
+export { default as SMAA_EDGES_FRAG } from "./smaa-edges.frag.js";
 
 export { default as SMAA_WEIGHTS_VERT } from "./smaa-weights.vert.js";
 export { default as SMAA_WEIGHTS_FRAG } from "./smaa-weights.frag.js";
