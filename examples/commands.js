@@ -62,8 +62,8 @@ const ready = async () =>
     });
 
     // Meshes
-    const cubeGeometry = createCube(1, 1, 1, 100, 100, 100);
-    const sphereGeometry = createSphere(1, { segments: 16 });
+    const cubeGeometry = createCube({ sx: 1, nx: 100 });
+    const sphereGeometry = createSphere({ radius: 1, segments: 16 });
 
     const cube = regl({
       vert: `#define UVS
@@ -148,7 +148,10 @@ const ready = async () =>
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        uTexelSize: [1 / regl._gl.drawingBufferWidth, 1 / regl._gl.drawingBufferHeight],
+        uTexelSize: [
+          1 / regl._gl.drawingBufferWidth,
+          1 / regl._gl.drawingBufferHeight,
+        ],
         uDepthTexture: FBO.depth,
       },
       depth: {
@@ -168,7 +171,10 @@ const ready = async () =>
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        uTexelSize: [1 / regl._gl.drawingBufferWidth, 1 / regl._gl.drawingBufferHeight],
+        uTexelSize: [
+          1 / regl._gl.drawingBufferWidth,
+          1 / regl._gl.drawingBufferHeight,
+        ],
         uTexture: FBO.SMAA,
       },
       depth: {
@@ -191,7 +197,10 @@ const ready = async () =>
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        uTexelSize: [1 / regl._gl.drawingBufferWidth, 1 / regl._gl.drawingBufferHeight],
+        uTexelSize: [
+          1 / regl._gl.drawingBufferWidth,
+          1 / regl._gl.drawingBufferHeight,
+        ],
         uTexture: FBO.SMAA,
       },
       depth: {
@@ -214,8 +223,14 @@ const ready = async () =>
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        uViewportSize: [regl._gl.drawingBufferWidth, regl._gl.drawingBufferHeight],
-        uTexelSize: [1 / regl._gl.drawingBufferWidth, 1 / regl._gl.drawingBufferHeight],
+        uViewportSize: [
+          regl._gl.drawingBufferWidth,
+          regl._gl.drawingBufferHeight,
+        ],
+        uTexelSize: [
+          1 / regl._gl.drawingBufferWidth,
+          1 / regl._gl.drawingBufferHeight,
+        ],
         uEdgesTexture: FBO.edges,
         uSearchTexture: regl.prop("searchTex"),
         uAreaTexture: regl.prop("areaTex"),
@@ -238,7 +253,10 @@ const ready = async () =>
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        uTexelSize: [1 / regl._gl.drawingBufferWidth, 1 / regl._gl.drawingBufferHeight],
+        uTexelSize: [
+          1 / regl._gl.drawingBufferWidth,
+          1 / regl._gl.drawingBufferHeight,
+        ],
         uTexture: FBO.SMAA,
         uBlendTexture: FBO.weights,
       },

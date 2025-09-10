@@ -1,2070 +1,342 @@
-var global = (typeof global !== "undefined" ? global :
-  typeof self !== "undefined" ? self :
-  typeof window !== "undefined" ? window : {});
+import { c as commonjsGlobal } from './_chunks/polyfills-Ca5RnHyL.js';
 
-var lookup = [];
-var revLookup = [];
-var Arr = typeof Uint8Array !== 'undefined' ? Uint8Array : Array;
-var inited = false;
-function init () {
-  inited = true;
-  var code = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  for (var i = 0, len = code.length; i < len; ++i) {
-    lookup[i] = code[i];
-    revLookup[code.charCodeAt(i)] = i;
-  }
+var esModuleShims = {};
 
-  revLookup['-'.charCodeAt(0)] = 62;
-  revLookup['_'.charCodeAt(0)] = 63;
-}
+/** ES Module Shims @version 2.6.2 */
 
-function toByteArray (b64) {
-  if (!inited) {
-    init();
-  }
-  var i, j, l, tmp, placeHolders, arr;
-  var len = b64.length;
-
-  if (len % 4 > 0) {
-    throw new Error('Invalid string. Length must be a multiple of 4')
-  }
-
-  // the number of equal signs (place holders)
-  // if there are two placeholders, than the two characters before it
-  // represent one byte
-  // if there is only one, then the three characters before it represent 2 bytes
-  // this is just a cheap hack to not do indexOf twice
-  placeHolders = b64[len - 2] === '=' ? 2 : b64[len - 1] === '=' ? 1 : 0;
-
-  // base64 is 4/3 + up to two characters of the original data
-  arr = new Arr(len * 3 / 4 - placeHolders);
-
-  // if there are placeholders, only get up to the last complete 4 chars
-  l = placeHolders > 0 ? len - 4 : len;
-
-  var L = 0;
-
-  for (i = 0, j = 0; i < l; i += 4, j += 3) {
-    tmp = (revLookup[b64.charCodeAt(i)] << 18) | (revLookup[b64.charCodeAt(i + 1)] << 12) | (revLookup[b64.charCodeAt(i + 2)] << 6) | revLookup[b64.charCodeAt(i + 3)];
-    arr[L++] = (tmp >> 16) & 0xFF;
-    arr[L++] = (tmp >> 8) & 0xFF;
-    arr[L++] = tmp & 0xFF;
-  }
-
-  if (placeHolders === 2) {
-    tmp = (revLookup[b64.charCodeAt(i)] << 2) | (revLookup[b64.charCodeAt(i + 1)] >> 4);
-    arr[L++] = tmp & 0xFF;
-  } else if (placeHolders === 1) {
-    tmp = (revLookup[b64.charCodeAt(i)] << 10) | (revLookup[b64.charCodeAt(i + 1)] << 4) | (revLookup[b64.charCodeAt(i + 2)] >> 2);
-    arr[L++] = (tmp >> 8) & 0xFF;
-    arr[L++] = tmp & 0xFF;
-  }
-
-  return arr
-}
-
-function tripletToBase64 (num) {
-  return lookup[num >> 18 & 0x3F] + lookup[num >> 12 & 0x3F] + lookup[num >> 6 & 0x3F] + lookup[num & 0x3F]
-}
-
-function encodeChunk (uint8, start, end) {
-  var tmp;
-  var output = [];
-  for (var i = start; i < end; i += 3) {
-    tmp = (uint8[i] << 16) + (uint8[i + 1] << 8) + (uint8[i + 2]);
-    output.push(tripletToBase64(tmp));
-  }
-  return output.join('')
-}
-
-function fromByteArray (uint8) {
-  if (!inited) {
-    init();
-  }
-  var tmp;
-  var len = uint8.length;
-  var extraBytes = len % 3; // if we have 1 byte left, pad 2 bytes
-  var output = '';
-  var parts = [];
-  var maxChunkLength = 16383; // must be multiple of 3
-
-  // go through the array every three bytes, we'll deal with trailing stuff later
-  for (var i = 0, len2 = len - extraBytes; i < len2; i += maxChunkLength) {
-    parts.push(encodeChunk(uint8, i, (i + maxChunkLength) > len2 ? len2 : (i + maxChunkLength)));
-  }
-
-  // pad the end with zeros, but make sure to not forget the extra bytes
-  if (extraBytes === 1) {
-    tmp = uint8[len - 1];
-    output += lookup[tmp >> 2];
-    output += lookup[(tmp << 4) & 0x3F];
-    output += '==';
-  } else if (extraBytes === 2) {
-    tmp = (uint8[len - 2] << 8) + (uint8[len - 1]);
-    output += lookup[tmp >> 10];
-    output += lookup[(tmp >> 4) & 0x3F];
-    output += lookup[(tmp << 2) & 0x3F];
-    output += '=';
-  }
-
-  parts.push(output);
-
-  return parts.join('')
-}
-
-function read (buffer, offset, isLE, mLen, nBytes) {
-  var e, m;
-  var eLen = nBytes * 8 - mLen - 1;
-  var eMax = (1 << eLen) - 1;
-  var eBias = eMax >> 1;
-  var nBits = -7;
-  var i = isLE ? (nBytes - 1) : 0;
-  var d = isLE ? -1 : 1;
-  var s = buffer[offset + i];
-
-  i += d;
-
-  e = s & ((1 << (-nBits)) - 1);
-  s >>= (-nBits);
-  nBits += eLen;
-  for (; nBits > 0; e = e * 256 + buffer[offset + i], i += d, nBits -= 8) {}
-
-  m = e & ((1 << (-nBits)) - 1);
-  e >>= (-nBits);
-  nBits += mLen;
-  for (; nBits > 0; m = m * 256 + buffer[offset + i], i += d, nBits -= 8) {}
-
-  if (e === 0) {
-    e = 1 - eBias;
-  } else if (e === eMax) {
-    return m ? NaN : ((s ? -1 : 1) * Infinity)
-  } else {
-    m = m + Math.pow(2, mLen);
-    e = e - eBias;
-  }
-  return (s ? -1 : 1) * m * Math.pow(2, e - mLen)
-}
-
-function write (buffer, value, offset, isLE, mLen, nBytes) {
-  var e, m, c;
-  var eLen = nBytes * 8 - mLen - 1;
-  var eMax = (1 << eLen) - 1;
-  var eBias = eMax >> 1;
-  var rt = (mLen === 23 ? Math.pow(2, -24) - Math.pow(2, -77) : 0);
-  var i = isLE ? 0 : (nBytes - 1);
-  var d = isLE ? 1 : -1;
-  var s = value < 0 || (value === 0 && 1 / value < 0) ? 1 : 0;
-
-  value = Math.abs(value);
-
-  if (isNaN(value) || value === Infinity) {
-    m = isNaN(value) ? 1 : 0;
-    e = eMax;
-  } else {
-    e = Math.floor(Math.log(value) / Math.LN2);
-    if (value * (c = Math.pow(2, -e)) < 1) {
-      e--;
-      c *= 2;
-    }
-    if (e + eBias >= 1) {
-      value += rt / c;
-    } else {
-      value += rt * Math.pow(2, 1 - eBias);
-    }
-    if (value * c >= 2) {
-      e++;
-      c /= 2;
-    }
-
-    if (e + eBias >= eMax) {
-      m = 0;
-      e = eMax;
-    } else if (e + eBias >= 1) {
-      m = (value * c - 1) * Math.pow(2, mLen);
-      e = e + eBias;
-    } else {
-      m = value * Math.pow(2, eBias - 1) * Math.pow(2, mLen);
-      e = 0;
-    }
-  }
-
-  for (; mLen >= 8; buffer[offset + i] = m & 0xff, i += d, m /= 256, mLen -= 8) {}
-
-  e = (e << mLen) | m;
-  eLen += mLen;
-  for (; eLen > 0; buffer[offset + i] = e & 0xff, i += d, e /= 256, eLen -= 8) {}
-
-  buffer[offset + i - d] |= s * 128;
-}
-
-var toString = {}.toString;
-
-var isArray = Array.isArray || function (arr) {
-  return toString.call(arr) == '[object Array]';
-};
-
-/*!
- * The buffer module from node.js, for the browser.
- *
- * @author   Feross Aboukhadijeh <feross@feross.org> <http://feross.org>
- * @license  MIT
- */
-
-var INSPECT_MAX_BYTES = 50;
-
-/**
- * If `Buffer.TYPED_ARRAY_SUPPORT`:
- *   === true    Use Uint8Array implementation (fastest)
- *   === false   Use Object implementation (most compatible, even IE6)
- *
- * Browsers that support typed arrays are IE 10+, Firefox 4+, Chrome 7+, Safari 5.1+,
- * Opera 11.6+, iOS 4.2+.
- *
- * Due to various browser bugs, sometimes the Object implementation will be used even
- * when the browser supports typed arrays.
- *
- * Note:
- *
- *   - Firefox 4-29 lacks support for adding new properties to `Uint8Array` instances,
- *     See: https://bugzilla.mozilla.org/show_bug.cgi?id=695438.
- *
- *   - Chrome 9-10 is missing the `TypedArray.prototype.subarray` function.
- *
- *   - IE10 has a broken `TypedArray.prototype.subarray` function which returns arrays of
- *     incorrect length in some situations.
-
- * We detect these buggy browsers and set `Buffer.TYPED_ARRAY_SUPPORT` to `false` so they
- * get the Object implementation, which is slower but behaves correctly.
- */
-Buffer.TYPED_ARRAY_SUPPORT = global.TYPED_ARRAY_SUPPORT !== undefined
-  ? global.TYPED_ARRAY_SUPPORT
-  : true;
-
-function kMaxLength () {
-  return Buffer.TYPED_ARRAY_SUPPORT
-    ? 0x7fffffff
-    : 0x3fffffff
-}
-
-function createBuffer (that, length) {
-  if (kMaxLength() < length) {
-    throw new RangeError('Invalid typed array length')
-  }
-  if (Buffer.TYPED_ARRAY_SUPPORT) {
-    // Return an augmented `Uint8Array` instance, for best performance
-    that = new Uint8Array(length);
-    that.__proto__ = Buffer.prototype;
-  } else {
-    // Fallback: Return an object instance of the Buffer class
-    if (that === null) {
-      that = new Buffer(length);
-    }
-    that.length = length;
-  }
-
-  return that
-}
-
-/**
- * The Buffer constructor returns instances of `Uint8Array` that have their
- * prototype changed to `Buffer.prototype`. Furthermore, `Buffer` is a subclass of
- * `Uint8Array`, so the returned instances will have all the node `Buffer` methods
- * and the `Uint8Array` methods. Square bracket notation works as expected -- it
- * returns a single octet.
- *
- * The `Uint8Array` prototype remains unmodified.
- */
-
-function Buffer (arg, encodingOrOffset, length) {
-  if (!Buffer.TYPED_ARRAY_SUPPORT && !(this instanceof Buffer)) {
-    return new Buffer(arg, encodingOrOffset, length)
-  }
-
-  // Common case.
-  if (typeof arg === 'number') {
-    if (typeof encodingOrOffset === 'string') {
-      throw new Error(
-        'If encoding is specified then the first argument must be a string'
-      )
-    }
-    return allocUnsafe(this, arg)
-  }
-  return from(this, arg, encodingOrOffset, length)
-}
-
-Buffer.poolSize = 8192; // not used by this implementation
-
-// TODO: Legacy, not needed anymore. Remove in next major version.
-Buffer._augment = function (arr) {
-  arr.__proto__ = Buffer.prototype;
-  return arr
-};
-
-function from (that, value, encodingOrOffset, length) {
-  if (typeof value === 'number') {
-    throw new TypeError('"value" argument must not be a number')
-  }
-
-  if (typeof ArrayBuffer !== 'undefined' && value instanceof ArrayBuffer) {
-    return fromArrayBuffer(that, value, encodingOrOffset, length)
-  }
-
-  if (typeof value === 'string') {
-    return fromString(that, value, encodingOrOffset)
-  }
-
-  return fromObject(that, value)
-}
-
-/**
- * Functionally equivalent to Buffer(arg, encoding) but throws a TypeError
- * if value is a number.
- * Buffer.from(str[, encoding])
- * Buffer.from(array)
- * Buffer.from(buffer)
- * Buffer.from(arrayBuffer[, byteOffset[, length]])
- **/
-Buffer.from = function (value, encodingOrOffset, length) {
-  return from(null, value, encodingOrOffset, length)
-};
-
-if (Buffer.TYPED_ARRAY_SUPPORT) {
-  Buffer.prototype.__proto__ = Uint8Array.prototype;
-  Buffer.__proto__ = Uint8Array;
-}
-
-function assertSize (size) {
-  if (typeof size !== 'number') {
-    throw new TypeError('"size" argument must be a number')
-  } else if (size < 0) {
-    throw new RangeError('"size" argument must not be negative')
-  }
-}
-
-function alloc (that, size, fill, encoding) {
-  assertSize(size);
-  if (size <= 0) {
-    return createBuffer(that, size)
-  }
-  if (fill !== undefined) {
-    // Only pay attention to encoding if it's a string. This
-    // prevents accidentally sending in a number that would
-    // be interpretted as a start offset.
-    return typeof encoding === 'string'
-      ? createBuffer(that, size).fill(fill, encoding)
-      : createBuffer(that, size).fill(fill)
-  }
-  return createBuffer(that, size)
-}
-
-/**
- * Creates a new filled Buffer instance.
- * alloc(size[, fill[, encoding]])
- **/
-Buffer.alloc = function (size, fill, encoding) {
-  return alloc(null, size, fill, encoding)
-};
-
-function allocUnsafe (that, size) {
-  assertSize(size);
-  that = createBuffer(that, size < 0 ? 0 : checked(size) | 0);
-  if (!Buffer.TYPED_ARRAY_SUPPORT) {
-    for (var i = 0; i < size; ++i) {
-      that[i] = 0;
-    }
-  }
-  return that
-}
-
-/**
- * Equivalent to Buffer(num), by default creates a non-zero-filled Buffer instance.
- * */
-Buffer.allocUnsafe = function (size) {
-  return allocUnsafe(null, size)
-};
-/**
- * Equivalent to SlowBuffer(num), by default creates a non-zero-filled Buffer instance.
- */
-Buffer.allocUnsafeSlow = function (size) {
-  return allocUnsafe(null, size)
-};
-
-function fromString (that, string, encoding) {
-  if (typeof encoding !== 'string' || encoding === '') {
-    encoding = 'utf8';
-  }
-
-  if (!Buffer.isEncoding(encoding)) {
-    throw new TypeError('"encoding" must be a valid string encoding')
-  }
-
-  var length = byteLength(string, encoding) | 0;
-  that = createBuffer(that, length);
-
-  var actual = that.write(string, encoding);
-
-  if (actual !== length) {
-    // Writing a hex string, for example, that contains invalid characters will
-    // cause everything after the first invalid character to be ignored. (e.g.
-    // 'abxxcd' will be treated as 'ab')
-    that = that.slice(0, actual);
-  }
-
-  return that
-}
-
-function fromArrayLike (that, array) {
-  var length = array.length < 0 ? 0 : checked(array.length) | 0;
-  that = createBuffer(that, length);
-  for (var i = 0; i < length; i += 1) {
-    that[i] = array[i] & 255;
-  }
-  return that
-}
-
-function fromArrayBuffer (that, array, byteOffset, length) {
-  array.byteLength; // this throws if `array` is not a valid ArrayBuffer
-
-  if (byteOffset < 0 || array.byteLength < byteOffset) {
-    throw new RangeError('\'offset\' is out of bounds')
-  }
-
-  if (array.byteLength < byteOffset + (length || 0)) {
-    throw new RangeError('\'length\' is out of bounds')
-  }
-
-  if (byteOffset === undefined && length === undefined) {
-    array = new Uint8Array(array);
-  } else if (length === undefined) {
-    array = new Uint8Array(array, byteOffset);
-  } else {
-    array = new Uint8Array(array, byteOffset, length);
-  }
-
-  if (Buffer.TYPED_ARRAY_SUPPORT) {
-    // Return an augmented `Uint8Array` instance, for best performance
-    that = array;
-    that.__proto__ = Buffer.prototype;
-  } else {
-    // Fallback: Return an object instance of the Buffer class
-    that = fromArrayLike(that, array);
-  }
-  return that
-}
-
-function fromObject (that, obj) {
-  if (internalIsBuffer(obj)) {
-    var len = checked(obj.length) | 0;
-    that = createBuffer(that, len);
-
-    if (that.length === 0) {
-      return that
-    }
-
-    obj.copy(that, 0, 0, len);
-    return that
-  }
-
-  if (obj) {
-    if ((typeof ArrayBuffer !== 'undefined' &&
-        obj.buffer instanceof ArrayBuffer) || 'length' in obj) {
-      if (typeof obj.length !== 'number' || isnan(obj.length)) {
-        return createBuffer(that, 0)
-      }
-      return fromArrayLike(that, obj)
-    }
-
-    if (obj.type === 'Buffer' && isArray(obj.data)) {
-      return fromArrayLike(that, obj.data)
-    }
-  }
-
-  throw new TypeError('First argument must be a string, Buffer, ArrayBuffer, Array, or array-like object.')
-}
-
-function checked (length) {
-  // Note: cannot use `length < kMaxLength()` here because that fails when
-  // length is NaN (which is otherwise coerced to zero.)
-  if (length >= kMaxLength()) {
-    throw new RangeError('Attempt to allocate Buffer larger than maximum ' +
-                         'size: 0x' + kMaxLength().toString(16) + ' bytes')
-  }
-  return length | 0
-}
-Buffer.isBuffer = isBuffer;
-function internalIsBuffer (b) {
-  return !!(b != null && b._isBuffer)
-}
-
-Buffer.compare = function compare (a, b) {
-  if (!internalIsBuffer(a) || !internalIsBuffer(b)) {
-    throw new TypeError('Arguments must be Buffers')
-  }
-
-  if (a === b) return 0
-
-  var x = a.length;
-  var y = b.length;
-
-  for (var i = 0, len = Math.min(x, y); i < len; ++i) {
-    if (a[i] !== b[i]) {
-      x = a[i];
-      y = b[i];
-      break
-    }
-  }
-
-  if (x < y) return -1
-  if (y < x) return 1
-  return 0
-};
-
-Buffer.isEncoding = function isEncoding (encoding) {
-  switch (String(encoding).toLowerCase()) {
-    case 'hex':
-    case 'utf8':
-    case 'utf-8':
-    case 'ascii':
-    case 'latin1':
-    case 'binary':
-    case 'base64':
-    case 'ucs2':
-    case 'ucs-2':
-    case 'utf16le':
-    case 'utf-16le':
-      return true
-    default:
-      return false
-  }
-};
-
-Buffer.concat = function concat (list, length) {
-  if (!isArray(list)) {
-    throw new TypeError('"list" argument must be an Array of Buffers')
-  }
-
-  if (list.length === 0) {
-    return Buffer.alloc(0)
-  }
-
-  var i;
-  if (length === undefined) {
-    length = 0;
-    for (i = 0; i < list.length; ++i) {
-      length += list[i].length;
-    }
-  }
-
-  var buffer = Buffer.allocUnsafe(length);
-  var pos = 0;
-  for (i = 0; i < list.length; ++i) {
-    var buf = list[i];
-    if (!internalIsBuffer(buf)) {
-      throw new TypeError('"list" argument must be an Array of Buffers')
-    }
-    buf.copy(buffer, pos);
-    pos += buf.length;
-  }
-  return buffer
-};
-
-function byteLength (string, encoding) {
-  if (internalIsBuffer(string)) {
-    return string.length
-  }
-  if (typeof ArrayBuffer !== 'undefined' && typeof ArrayBuffer.isView === 'function' &&
-      (ArrayBuffer.isView(string) || string instanceof ArrayBuffer)) {
-    return string.byteLength
-  }
-  if (typeof string !== 'string') {
-    string = '' + string;
-  }
-
-  var len = string.length;
-  if (len === 0) return 0
-
-  // Use a for loop to avoid recursion
-  var loweredCase = false;
-  for (;;) {
-    switch (encoding) {
-      case 'ascii':
-      case 'latin1':
-      case 'binary':
-        return len
-      case 'utf8':
-      case 'utf-8':
-      case undefined:
-        return utf8ToBytes(string).length
-      case 'ucs2':
-      case 'ucs-2':
-      case 'utf16le':
-      case 'utf-16le':
-        return len * 2
-      case 'hex':
-        return len >>> 1
-      case 'base64':
-        return base64ToBytes(string).length
-      default:
-        if (loweredCase) return utf8ToBytes(string).length // assume utf8
-        encoding = ('' + encoding).toLowerCase();
-        loweredCase = true;
-    }
-  }
-}
-Buffer.byteLength = byteLength;
-
-function slowToString (encoding, start, end) {
-  var loweredCase = false;
-
-  // No need to verify that "this.length <= MAX_UINT32" since it's a read-only
-  // property of a typed array.
-
-  // This behaves neither like String nor Uint8Array in that we set start/end
-  // to their upper/lower bounds if the value passed is out of range.
-  // undefined is handled specially as per ECMA-262 6th Edition,
-  // Section 13.3.3.7 Runtime Semantics: KeyedBindingInitialization.
-  if (start === undefined || start < 0) {
-    start = 0;
-  }
-  // Return early if start > this.length. Done here to prevent potential uint32
-  // coercion fail below.
-  if (start > this.length) {
-    return ''
-  }
-
-  if (end === undefined || end > this.length) {
-    end = this.length;
-  }
-
-  if (end <= 0) {
-    return ''
-  }
-
-  // Force coersion to uint32. This will also coerce falsey/NaN values to 0.
-  end >>>= 0;
-  start >>>= 0;
-
-  if (end <= start) {
-    return ''
-  }
-
-  if (!encoding) encoding = 'utf8';
-
-  while (true) {
-    switch (encoding) {
-      case 'hex':
-        return hexSlice(this, start, end)
-
-      case 'utf8':
-      case 'utf-8':
-        return utf8Slice(this, start, end)
-
-      case 'ascii':
-        return asciiSlice(this, start, end)
-
-      case 'latin1':
-      case 'binary':
-        return latin1Slice(this, start, end)
-
-      case 'base64':
-        return base64Slice(this, start, end)
-
-      case 'ucs2':
-      case 'ucs-2':
-      case 'utf16le':
-      case 'utf-16le':
-        return utf16leSlice(this, start, end)
-
-      default:
-        if (loweredCase) throw new TypeError('Unknown encoding: ' + encoding)
-        encoding = (encoding + '').toLowerCase();
-        loweredCase = true;
-    }
-  }
-}
-
-// The property is used by `Buffer.isBuffer` and `is-buffer` (in Safari 5-7) to detect
-// Buffer instances.
-Buffer.prototype._isBuffer = true;
-
-function swap (b, n, m) {
-  var i = b[n];
-  b[n] = b[m];
-  b[m] = i;
-}
-
-Buffer.prototype.swap16 = function swap16 () {
-  var len = this.length;
-  if (len % 2 !== 0) {
-    throw new RangeError('Buffer size must be a multiple of 16-bits')
-  }
-  for (var i = 0; i < len; i += 2) {
-    swap(this, i, i + 1);
-  }
-  return this
-};
-
-Buffer.prototype.swap32 = function swap32 () {
-  var len = this.length;
-  if (len % 4 !== 0) {
-    throw new RangeError('Buffer size must be a multiple of 32-bits')
-  }
-  for (var i = 0; i < len; i += 4) {
-    swap(this, i, i + 3);
-    swap(this, i + 1, i + 2);
-  }
-  return this
-};
-
-Buffer.prototype.swap64 = function swap64 () {
-  var len = this.length;
-  if (len % 8 !== 0) {
-    throw new RangeError('Buffer size must be a multiple of 64-bits')
-  }
-  for (var i = 0; i < len; i += 8) {
-    swap(this, i, i + 7);
-    swap(this, i + 1, i + 6);
-    swap(this, i + 2, i + 5);
-    swap(this, i + 3, i + 4);
-  }
-  return this
-};
-
-Buffer.prototype.toString = function toString () {
-  var length = this.length | 0;
-  if (length === 0) return ''
-  if (arguments.length === 0) return utf8Slice(this, 0, length)
-  return slowToString.apply(this, arguments)
-};
-
-Buffer.prototype.equals = function equals (b) {
-  if (!internalIsBuffer(b)) throw new TypeError('Argument must be a Buffer')
-  if (this === b) return true
-  return Buffer.compare(this, b) === 0
-};
-
-Buffer.prototype.inspect = function inspect () {
-  var str = '';
-  var max = INSPECT_MAX_BYTES;
-  if (this.length > 0) {
-    str = this.toString('hex', 0, max).match(/.{2}/g).join(' ');
-    if (this.length > max) str += ' ... ';
-  }
-  return '<Buffer ' + str + '>'
-};
-
-Buffer.prototype.compare = function compare (target, start, end, thisStart, thisEnd) {
-  if (!internalIsBuffer(target)) {
-    throw new TypeError('Argument must be a Buffer')
-  }
-
-  if (start === undefined) {
-    start = 0;
-  }
-  if (end === undefined) {
-    end = target ? target.length : 0;
-  }
-  if (thisStart === undefined) {
-    thisStart = 0;
-  }
-  if (thisEnd === undefined) {
-    thisEnd = this.length;
-  }
-
-  if (start < 0 || end > target.length || thisStart < 0 || thisEnd > this.length) {
-    throw new RangeError('out of range index')
-  }
-
-  if (thisStart >= thisEnd && start >= end) {
-    return 0
-  }
-  if (thisStart >= thisEnd) {
-    return -1
-  }
-  if (start >= end) {
-    return 1
-  }
-
-  start >>>= 0;
-  end >>>= 0;
-  thisStart >>>= 0;
-  thisEnd >>>= 0;
-
-  if (this === target) return 0
-
-  var x = thisEnd - thisStart;
-  var y = end - start;
-  var len = Math.min(x, y);
-
-  var thisCopy = this.slice(thisStart, thisEnd);
-  var targetCopy = target.slice(start, end);
-
-  for (var i = 0; i < len; ++i) {
-    if (thisCopy[i] !== targetCopy[i]) {
-      x = thisCopy[i];
-      y = targetCopy[i];
-      break
-    }
-  }
-
-  if (x < y) return -1
-  if (y < x) return 1
-  return 0
-};
-
-// Finds either the first index of `val` in `buffer` at offset >= `byteOffset`,
-// OR the last index of `val` in `buffer` at offset <= `byteOffset`.
-//
-// Arguments:
-// - buffer - a Buffer to search
-// - val - a string, Buffer, or number
-// - byteOffset - an index into `buffer`; will be clamped to an int32
-// - encoding - an optional encoding, relevant is val is a string
-// - dir - true for indexOf, false for lastIndexOf
-function bidirectionalIndexOf (buffer, val, byteOffset, encoding, dir) {
-  // Empty buffer means no match
-  if (buffer.length === 0) return -1
-
-  // Normalize byteOffset
-  if (typeof byteOffset === 'string') {
-    encoding = byteOffset;
-    byteOffset = 0;
-  } else if (byteOffset > 0x7fffffff) {
-    byteOffset = 0x7fffffff;
-  } else if (byteOffset < -0x80000000) {
-    byteOffset = -0x80000000;
-  }
-  byteOffset = +byteOffset;  // Coerce to Number.
-  if (isNaN(byteOffset)) {
-    // byteOffset: it it's undefined, null, NaN, "foo", etc, search whole buffer
-    byteOffset = dir ? 0 : (buffer.length - 1);
-  }
-
-  // Normalize byteOffset: negative offsets start from the end of the buffer
-  if (byteOffset < 0) byteOffset = buffer.length + byteOffset;
-  if (byteOffset >= buffer.length) {
-    if (dir) return -1
-    else byteOffset = buffer.length - 1;
-  } else if (byteOffset < 0) {
-    if (dir) byteOffset = 0;
-    else return -1
-  }
-
-  // Normalize val
-  if (typeof val === 'string') {
-    val = Buffer.from(val, encoding);
-  }
-
-  // Finally, search either indexOf (if dir is true) or lastIndexOf
-  if (internalIsBuffer(val)) {
-    // Special case: looking for empty string/buffer always fails
-    if (val.length === 0) {
-      return -1
-    }
-    return arrayIndexOf(buffer, val, byteOffset, encoding, dir)
-  } else if (typeof val === 'number') {
-    val = val & 0xFF; // Search for a byte value [0-255]
-    if (Buffer.TYPED_ARRAY_SUPPORT &&
-        typeof Uint8Array.prototype.indexOf === 'function') {
-      if (dir) {
-        return Uint8Array.prototype.indexOf.call(buffer, val, byteOffset)
-      } else {
-        return Uint8Array.prototype.lastIndexOf.call(buffer, val, byteOffset)
-      }
-    }
-    return arrayIndexOf(buffer, [ val ], byteOffset, encoding, dir)
-  }
-
-  throw new TypeError('val must be string, number or Buffer')
-}
-
-function arrayIndexOf (arr, val, byteOffset, encoding, dir) {
-  var indexSize = 1;
-  var arrLength = arr.length;
-  var valLength = val.length;
-
-  if (encoding !== undefined) {
-    encoding = String(encoding).toLowerCase();
-    if (encoding === 'ucs2' || encoding === 'ucs-2' ||
-        encoding === 'utf16le' || encoding === 'utf-16le') {
-      if (arr.length < 2 || val.length < 2) {
-        return -1
-      }
-      indexSize = 2;
-      arrLength /= 2;
-      valLength /= 2;
-      byteOffset /= 2;
-    }
-  }
-
-  function read (buf, i) {
-    if (indexSize === 1) {
-      return buf[i]
-    } else {
-      return buf.readUInt16BE(i * indexSize)
-    }
-  }
-
-  var i;
-  if (dir) {
-    var foundIndex = -1;
-    for (i = byteOffset; i < arrLength; i++) {
-      if (read(arr, i) === read(val, foundIndex === -1 ? 0 : i - foundIndex)) {
-        if (foundIndex === -1) foundIndex = i;
-        if (i - foundIndex + 1 === valLength) return foundIndex * indexSize
-      } else {
-        if (foundIndex !== -1) i -= i - foundIndex;
-        foundIndex = -1;
-      }
-    }
-  } else {
-    if (byteOffset + valLength > arrLength) byteOffset = arrLength - valLength;
-    for (i = byteOffset; i >= 0; i--) {
-      var found = true;
-      for (var j = 0; j < valLength; j++) {
-        if (read(arr, i + j) !== read(val, j)) {
-          found = false;
-          break
-        }
-      }
-      if (found) return i
-    }
-  }
-
-  return -1
-}
-
-Buffer.prototype.includes = function includes (val, byteOffset, encoding) {
-  return this.indexOf(val, byteOffset, encoding) !== -1
-};
-
-Buffer.prototype.indexOf = function indexOf (val, byteOffset, encoding) {
-  return bidirectionalIndexOf(this, val, byteOffset, encoding, true)
-};
-
-Buffer.prototype.lastIndexOf = function lastIndexOf (val, byteOffset, encoding) {
-  return bidirectionalIndexOf(this, val, byteOffset, encoding, false)
-};
-
-function hexWrite (buf, string, offset, length) {
-  offset = Number(offset) || 0;
-  var remaining = buf.length - offset;
-  if (!length) {
-    length = remaining;
-  } else {
-    length = Number(length);
-    if (length > remaining) {
-      length = remaining;
-    }
-  }
-
-  // must be an even number of digits
-  var strLen = string.length;
-  if (strLen % 2 !== 0) throw new TypeError('Invalid hex string')
-
-  if (length > strLen / 2) {
-    length = strLen / 2;
-  }
-  for (var i = 0; i < length; ++i) {
-    var parsed = parseInt(string.substr(i * 2, 2), 16);
-    if (isNaN(parsed)) return i
-    buf[offset + i] = parsed;
-  }
-  return i
-}
-
-function utf8Write (buf, string, offset, length) {
-  return blitBuffer(utf8ToBytes(string, buf.length - offset), buf, offset, length)
-}
-
-function asciiWrite (buf, string, offset, length) {
-  return blitBuffer(asciiToBytes(string), buf, offset, length)
-}
-
-function latin1Write (buf, string, offset, length) {
-  return asciiWrite(buf, string, offset, length)
-}
-
-function base64Write (buf, string, offset, length) {
-  return blitBuffer(base64ToBytes(string), buf, offset, length)
-}
-
-function ucs2Write (buf, string, offset, length) {
-  return blitBuffer(utf16leToBytes(string, buf.length - offset), buf, offset, length)
-}
-
-Buffer.prototype.write = function write (string, offset, length, encoding) {
-  // Buffer#write(string)
-  if (offset === undefined) {
-    encoding = 'utf8';
-    length = this.length;
-    offset = 0;
-  // Buffer#write(string, encoding)
-  } else if (length === undefined && typeof offset === 'string') {
-    encoding = offset;
-    length = this.length;
-    offset = 0;
-  // Buffer#write(string, offset[, length][, encoding])
-  } else if (isFinite(offset)) {
-    offset = offset | 0;
-    if (isFinite(length)) {
-      length = length | 0;
-      if (encoding === undefined) encoding = 'utf8';
-    } else {
-      encoding = length;
-      length = undefined;
-    }
-  // legacy write(string, encoding, offset, length) - remove in v0.13
-  } else {
-    throw new Error(
-      'Buffer.write(string, encoding, offset[, length]) is no longer supported'
-    )
-  }
-
-  var remaining = this.length - offset;
-  if (length === undefined || length > remaining) length = remaining;
-
-  if ((string.length > 0 && (length < 0 || offset < 0)) || offset > this.length) {
-    throw new RangeError('Attempt to write outside buffer bounds')
-  }
-
-  if (!encoding) encoding = 'utf8';
-
-  var loweredCase = false;
-  for (;;) {
-    switch (encoding) {
-      case 'hex':
-        return hexWrite(this, string, offset, length)
-
-      case 'utf8':
-      case 'utf-8':
-        return utf8Write(this, string, offset, length)
-
-      case 'ascii':
-        return asciiWrite(this, string, offset, length)
-
-      case 'latin1':
-      case 'binary':
-        return latin1Write(this, string, offset, length)
-
-      case 'base64':
-        // Warning: maxLength not taken into account in base64Write
-        return base64Write(this, string, offset, length)
-
-      case 'ucs2':
-      case 'ucs-2':
-      case 'utf16le':
-      case 'utf-16le':
-        return ucs2Write(this, string, offset, length)
-
-      default:
-        if (loweredCase) throw new TypeError('Unknown encoding: ' + encoding)
-        encoding = ('' + encoding).toLowerCase();
-        loweredCase = true;
-    }
-  }
-};
-
-Buffer.prototype.toJSON = function toJSON () {
-  return {
-    type: 'Buffer',
-    data: Array.prototype.slice.call(this._arr || this, 0)
-  }
-};
-
-function base64Slice (buf, start, end) {
-  if (start === 0 && end === buf.length) {
-    return fromByteArray(buf)
-  } else {
-    return fromByteArray(buf.slice(start, end))
-  }
-}
-
-function utf8Slice (buf, start, end) {
-  end = Math.min(buf.length, end);
-  var res = [];
-
-  var i = start;
-  while (i < end) {
-    var firstByte = buf[i];
-    var codePoint = null;
-    var bytesPerSequence = (firstByte > 0xEF) ? 4
-      : (firstByte > 0xDF) ? 3
-      : (firstByte > 0xBF) ? 2
-      : 1;
-
-    if (i + bytesPerSequence <= end) {
-      var secondByte, thirdByte, fourthByte, tempCodePoint;
-
-      switch (bytesPerSequence) {
-        case 1:
-          if (firstByte < 0x80) {
-            codePoint = firstByte;
-          }
-          break
-        case 2:
-          secondByte = buf[i + 1];
-          if ((secondByte & 0xC0) === 0x80) {
-            tempCodePoint = (firstByte & 0x1F) << 0x6 | (secondByte & 0x3F);
-            if (tempCodePoint > 0x7F) {
-              codePoint = tempCodePoint;
-            }
-          }
-          break
-        case 3:
-          secondByte = buf[i + 1];
-          thirdByte = buf[i + 2];
-          if ((secondByte & 0xC0) === 0x80 && (thirdByte & 0xC0) === 0x80) {
-            tempCodePoint = (firstByte & 0xF) << 0xC | (secondByte & 0x3F) << 0x6 | (thirdByte & 0x3F);
-            if (tempCodePoint > 0x7FF && (tempCodePoint < 0xD800 || tempCodePoint > 0xDFFF)) {
-              codePoint = tempCodePoint;
-            }
-          }
-          break
-        case 4:
-          secondByte = buf[i + 1];
-          thirdByte = buf[i + 2];
-          fourthByte = buf[i + 3];
-          if ((secondByte & 0xC0) === 0x80 && (thirdByte & 0xC0) === 0x80 && (fourthByte & 0xC0) === 0x80) {
-            tempCodePoint = (firstByte & 0xF) << 0x12 | (secondByte & 0x3F) << 0xC | (thirdByte & 0x3F) << 0x6 | (fourthByte & 0x3F);
-            if (tempCodePoint > 0xFFFF && tempCodePoint < 0x110000) {
-              codePoint = tempCodePoint;
-            }
-          }
-      }
-    }
-
-    if (codePoint === null) {
-      // we did not generate a valid codePoint so insert a
-      // replacement char (U+FFFD) and advance only 1 byte
-      codePoint = 0xFFFD;
-      bytesPerSequence = 1;
-    } else if (codePoint > 0xFFFF) {
-      // encode to utf16 (surrogate pair dance)
-      codePoint -= 0x10000;
-      res.push(codePoint >>> 10 & 0x3FF | 0xD800);
-      codePoint = 0xDC00 | codePoint & 0x3FF;
-    }
-
-    res.push(codePoint);
-    i += bytesPerSequence;
-  }
-
-  return decodeCodePointsArray(res)
-}
-
-// Based on http://stackoverflow.com/a/22747272/680742, the browser with
-// the lowest limit is Chrome, with 0x10000 args.
-// We go 1 magnitude less, for safety
-var MAX_ARGUMENTS_LENGTH = 0x1000;
-
-function decodeCodePointsArray (codePoints) {
-  var len = codePoints.length;
-  if (len <= MAX_ARGUMENTS_LENGTH) {
-    return String.fromCharCode.apply(String, codePoints) // avoid extra slice()
-  }
-
-  // Decode in chunks to avoid "call stack size exceeded".
-  var res = '';
-  var i = 0;
-  while (i < len) {
-    res += String.fromCharCode.apply(
-      String,
-      codePoints.slice(i, i += MAX_ARGUMENTS_LENGTH)
-    );
-  }
-  return res
-}
-
-function asciiSlice (buf, start, end) {
-  var ret = '';
-  end = Math.min(buf.length, end);
-
-  for (var i = start; i < end; ++i) {
-    ret += String.fromCharCode(buf[i] & 0x7F);
-  }
-  return ret
-}
-
-function latin1Slice (buf, start, end) {
-  var ret = '';
-  end = Math.min(buf.length, end);
-
-  for (var i = start; i < end; ++i) {
-    ret += String.fromCharCode(buf[i]);
-  }
-  return ret
-}
-
-function hexSlice (buf, start, end) {
-  var len = buf.length;
-
-  if (!start || start < 0) start = 0;
-  if (!end || end < 0 || end > len) end = len;
-
-  var out = '';
-  for (var i = start; i < end; ++i) {
-    out += toHex(buf[i]);
-  }
-  return out
-}
-
-function utf16leSlice (buf, start, end) {
-  var bytes = buf.slice(start, end);
-  var res = '';
-  for (var i = 0; i < bytes.length; i += 2) {
-    res += String.fromCharCode(bytes[i] + bytes[i + 1] * 256);
-  }
-  return res
-}
-
-Buffer.prototype.slice = function slice (start, end) {
-  var len = this.length;
-  start = ~~start;
-  end = end === undefined ? len : ~~end;
-
-  if (start < 0) {
-    start += len;
-    if (start < 0) start = 0;
-  } else if (start > len) {
-    start = len;
-  }
-
-  if (end < 0) {
-    end += len;
-    if (end < 0) end = 0;
-  } else if (end > len) {
-    end = len;
-  }
-
-  if (end < start) end = start;
-
-  var newBuf;
-  if (Buffer.TYPED_ARRAY_SUPPORT) {
-    newBuf = this.subarray(start, end);
-    newBuf.__proto__ = Buffer.prototype;
-  } else {
-    var sliceLen = end - start;
-    newBuf = new Buffer(sliceLen, undefined);
-    for (var i = 0; i < sliceLen; ++i) {
-      newBuf[i] = this[i + start];
-    }
-  }
-
-  return newBuf
-};
-
-/*
- * Need to make sure that buffer isn't trying to write out of bounds.
- */
-function checkOffset (offset, ext, length) {
-  if ((offset % 1) !== 0 || offset < 0) throw new RangeError('offset is not uint')
-  if (offset + ext > length) throw new RangeError('Trying to access beyond buffer length')
-}
-
-Buffer.prototype.readUIntLE = function readUIntLE (offset, byteLength, noAssert) {
-  offset = offset | 0;
-  byteLength = byteLength | 0;
-  if (!noAssert) checkOffset(offset, byteLength, this.length);
-
-  var val = this[offset];
-  var mul = 1;
-  var i = 0;
-  while (++i < byteLength && (mul *= 0x100)) {
-    val += this[offset + i] * mul;
-  }
-
-  return val
-};
-
-Buffer.prototype.readUIntBE = function readUIntBE (offset, byteLength, noAssert) {
-  offset = offset | 0;
-  byteLength = byteLength | 0;
-  if (!noAssert) {
-    checkOffset(offset, byteLength, this.length);
-  }
-
-  var val = this[offset + --byteLength];
-  var mul = 1;
-  while (byteLength > 0 && (mul *= 0x100)) {
-    val += this[offset + --byteLength] * mul;
-  }
-
-  return val
-};
-
-Buffer.prototype.readUInt8 = function readUInt8 (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 1, this.length);
-  return this[offset]
-};
-
-Buffer.prototype.readUInt16LE = function readUInt16LE (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 2, this.length);
-  return this[offset] | (this[offset + 1] << 8)
-};
-
-Buffer.prototype.readUInt16BE = function readUInt16BE (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 2, this.length);
-  return (this[offset] << 8) | this[offset + 1]
-};
-
-Buffer.prototype.readUInt32LE = function readUInt32LE (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 4, this.length);
-
-  return ((this[offset]) |
-      (this[offset + 1] << 8) |
-      (this[offset + 2] << 16)) +
-      (this[offset + 3] * 0x1000000)
-};
-
-Buffer.prototype.readUInt32BE = function readUInt32BE (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 4, this.length);
-
-  return (this[offset] * 0x1000000) +
-    ((this[offset + 1] << 16) |
-    (this[offset + 2] << 8) |
-    this[offset + 3])
-};
-
-Buffer.prototype.readIntLE = function readIntLE (offset, byteLength, noAssert) {
-  offset = offset | 0;
-  byteLength = byteLength | 0;
-  if (!noAssert) checkOffset(offset, byteLength, this.length);
-
-  var val = this[offset];
-  var mul = 1;
-  var i = 0;
-  while (++i < byteLength && (mul *= 0x100)) {
-    val += this[offset + i] * mul;
-  }
-  mul *= 0x80;
-
-  if (val >= mul) val -= Math.pow(2, 8 * byteLength);
-
-  return val
-};
-
-Buffer.prototype.readIntBE = function readIntBE (offset, byteLength, noAssert) {
-  offset = offset | 0;
-  byteLength = byteLength | 0;
-  if (!noAssert) checkOffset(offset, byteLength, this.length);
-
-  var i = byteLength;
-  var mul = 1;
-  var val = this[offset + --i];
-  while (i > 0 && (mul *= 0x100)) {
-    val += this[offset + --i] * mul;
-  }
-  mul *= 0x80;
-
-  if (val >= mul) val -= Math.pow(2, 8 * byteLength);
-
-  return val
-};
-
-Buffer.prototype.readInt8 = function readInt8 (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 1, this.length);
-  if (!(this[offset] & 0x80)) return (this[offset])
-  return ((0xff - this[offset] + 1) * -1)
-};
-
-Buffer.prototype.readInt16LE = function readInt16LE (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 2, this.length);
-  var val = this[offset] | (this[offset + 1] << 8);
-  return (val & 0x8000) ? val | 0xFFFF0000 : val
-};
-
-Buffer.prototype.readInt16BE = function readInt16BE (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 2, this.length);
-  var val = this[offset + 1] | (this[offset] << 8);
-  return (val & 0x8000) ? val | 0xFFFF0000 : val
-};
-
-Buffer.prototype.readInt32LE = function readInt32LE (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 4, this.length);
-
-  return (this[offset]) |
-    (this[offset + 1] << 8) |
-    (this[offset + 2] << 16) |
-    (this[offset + 3] << 24)
-};
-
-Buffer.prototype.readInt32BE = function readInt32BE (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 4, this.length);
-
-  return (this[offset] << 24) |
-    (this[offset + 1] << 16) |
-    (this[offset + 2] << 8) |
-    (this[offset + 3])
-};
-
-Buffer.prototype.readFloatLE = function readFloatLE (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 4, this.length);
-  return read(this, offset, true, 23, 4)
-};
-
-Buffer.prototype.readFloatBE = function readFloatBE (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 4, this.length);
-  return read(this, offset, false, 23, 4)
-};
-
-Buffer.prototype.readDoubleLE = function readDoubleLE (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 8, this.length);
-  return read(this, offset, true, 52, 8)
-};
-
-Buffer.prototype.readDoubleBE = function readDoubleBE (offset, noAssert) {
-  if (!noAssert) checkOffset(offset, 8, this.length);
-  return read(this, offset, false, 52, 8)
-};
-
-function checkInt (buf, value, offset, ext, max, min) {
-  if (!internalIsBuffer(buf)) throw new TypeError('"buffer" argument must be a Buffer instance')
-  if (value > max || value < min) throw new RangeError('"value" argument is out of bounds')
-  if (offset + ext > buf.length) throw new RangeError('Index out of range')
-}
-
-Buffer.prototype.writeUIntLE = function writeUIntLE (value, offset, byteLength, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  byteLength = byteLength | 0;
-  if (!noAssert) {
-    var maxBytes = Math.pow(2, 8 * byteLength) - 1;
-    checkInt(this, value, offset, byteLength, maxBytes, 0);
-  }
-
-  var mul = 1;
-  var i = 0;
-  this[offset] = value & 0xFF;
-  while (++i < byteLength && (mul *= 0x100)) {
-    this[offset + i] = (value / mul) & 0xFF;
-  }
-
-  return offset + byteLength
-};
-
-Buffer.prototype.writeUIntBE = function writeUIntBE (value, offset, byteLength, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  byteLength = byteLength | 0;
-  if (!noAssert) {
-    var maxBytes = Math.pow(2, 8 * byteLength) - 1;
-    checkInt(this, value, offset, byteLength, maxBytes, 0);
-  }
-
-  var i = byteLength - 1;
-  var mul = 1;
-  this[offset + i] = value & 0xFF;
-  while (--i >= 0 && (mul *= 0x100)) {
-    this[offset + i] = (value / mul) & 0xFF;
-  }
-
-  return offset + byteLength
-};
-
-Buffer.prototype.writeUInt8 = function writeUInt8 (value, offset, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  if (!noAssert) checkInt(this, value, offset, 1, 0xff, 0);
-  if (!Buffer.TYPED_ARRAY_SUPPORT) value = Math.floor(value);
-  this[offset] = (value & 0xff);
-  return offset + 1
-};
-
-function objectWriteUInt16 (buf, value, offset, littleEndian) {
-  if (value < 0) value = 0xffff + value + 1;
-  for (var i = 0, j = Math.min(buf.length - offset, 2); i < j; ++i) {
-    buf[offset + i] = (value & (0xff << (8 * (littleEndian ? i : 1 - i)))) >>>
-      (littleEndian ? i : 1 - i) * 8;
-  }
-}
-
-Buffer.prototype.writeUInt16LE = function writeUInt16LE (value, offset, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  if (!noAssert) checkInt(this, value, offset, 2, 0xffff, 0);
-  if (Buffer.TYPED_ARRAY_SUPPORT) {
-    this[offset] = (value & 0xff);
-    this[offset + 1] = (value >>> 8);
-  } else {
-    objectWriteUInt16(this, value, offset, true);
-  }
-  return offset + 2
-};
-
-Buffer.prototype.writeUInt16BE = function writeUInt16BE (value, offset, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  if (!noAssert) checkInt(this, value, offset, 2, 0xffff, 0);
-  if (Buffer.TYPED_ARRAY_SUPPORT) {
-    this[offset] = (value >>> 8);
-    this[offset + 1] = (value & 0xff);
-  } else {
-    objectWriteUInt16(this, value, offset, false);
-  }
-  return offset + 2
-};
-
-function objectWriteUInt32 (buf, value, offset, littleEndian) {
-  if (value < 0) value = 0xffffffff + value + 1;
-  for (var i = 0, j = Math.min(buf.length - offset, 4); i < j; ++i) {
-    buf[offset + i] = (value >>> (littleEndian ? i : 3 - i) * 8) & 0xff;
-  }
-}
-
-Buffer.prototype.writeUInt32LE = function writeUInt32LE (value, offset, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  if (!noAssert) checkInt(this, value, offset, 4, 0xffffffff, 0);
-  if (Buffer.TYPED_ARRAY_SUPPORT) {
-    this[offset + 3] = (value >>> 24);
-    this[offset + 2] = (value >>> 16);
-    this[offset + 1] = (value >>> 8);
-    this[offset] = (value & 0xff);
-  } else {
-    objectWriteUInt32(this, value, offset, true);
-  }
-  return offset + 4
-};
-
-Buffer.prototype.writeUInt32BE = function writeUInt32BE (value, offset, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  if (!noAssert) checkInt(this, value, offset, 4, 0xffffffff, 0);
-  if (Buffer.TYPED_ARRAY_SUPPORT) {
-    this[offset] = (value >>> 24);
-    this[offset + 1] = (value >>> 16);
-    this[offset + 2] = (value >>> 8);
-    this[offset + 3] = (value & 0xff);
-  } else {
-    objectWriteUInt32(this, value, offset, false);
-  }
-  return offset + 4
-};
-
-Buffer.prototype.writeIntLE = function writeIntLE (value, offset, byteLength, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  if (!noAssert) {
-    var limit = Math.pow(2, 8 * byteLength - 1);
-
-    checkInt(this, value, offset, byteLength, limit - 1, -limit);
-  }
-
-  var i = 0;
-  var mul = 1;
-  var sub = 0;
-  this[offset] = value & 0xFF;
-  while (++i < byteLength && (mul *= 0x100)) {
-    if (value < 0 && sub === 0 && this[offset + i - 1] !== 0) {
-      sub = 1;
-    }
-    this[offset + i] = ((value / mul) >> 0) - sub & 0xFF;
-  }
-
-  return offset + byteLength
-};
-
-Buffer.prototype.writeIntBE = function writeIntBE (value, offset, byteLength, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  if (!noAssert) {
-    var limit = Math.pow(2, 8 * byteLength - 1);
-
-    checkInt(this, value, offset, byteLength, limit - 1, -limit);
-  }
-
-  var i = byteLength - 1;
-  var mul = 1;
-  var sub = 0;
-  this[offset + i] = value & 0xFF;
-  while (--i >= 0 && (mul *= 0x100)) {
-    if (value < 0 && sub === 0 && this[offset + i + 1] !== 0) {
-      sub = 1;
-    }
-    this[offset + i] = ((value / mul) >> 0) - sub & 0xFF;
-  }
-
-  return offset + byteLength
-};
-
-Buffer.prototype.writeInt8 = function writeInt8 (value, offset, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  if (!noAssert) checkInt(this, value, offset, 1, 0x7f, -0x80);
-  if (!Buffer.TYPED_ARRAY_SUPPORT) value = Math.floor(value);
-  if (value < 0) value = 0xff + value + 1;
-  this[offset] = (value & 0xff);
-  return offset + 1
-};
-
-Buffer.prototype.writeInt16LE = function writeInt16LE (value, offset, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  if (!noAssert) checkInt(this, value, offset, 2, 0x7fff, -0x8000);
-  if (Buffer.TYPED_ARRAY_SUPPORT) {
-    this[offset] = (value & 0xff);
-    this[offset + 1] = (value >>> 8);
-  } else {
-    objectWriteUInt16(this, value, offset, true);
-  }
-  return offset + 2
-};
-
-Buffer.prototype.writeInt16BE = function writeInt16BE (value, offset, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  if (!noAssert) checkInt(this, value, offset, 2, 0x7fff, -0x8000);
-  if (Buffer.TYPED_ARRAY_SUPPORT) {
-    this[offset] = (value >>> 8);
-    this[offset + 1] = (value & 0xff);
-  } else {
-    objectWriteUInt16(this, value, offset, false);
-  }
-  return offset + 2
-};
-
-Buffer.prototype.writeInt32LE = function writeInt32LE (value, offset, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  if (!noAssert) checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000);
-  if (Buffer.TYPED_ARRAY_SUPPORT) {
-    this[offset] = (value & 0xff);
-    this[offset + 1] = (value >>> 8);
-    this[offset + 2] = (value >>> 16);
-    this[offset + 3] = (value >>> 24);
-  } else {
-    objectWriteUInt32(this, value, offset, true);
-  }
-  return offset + 4
-};
-
-Buffer.prototype.writeInt32BE = function writeInt32BE (value, offset, noAssert) {
-  value = +value;
-  offset = offset | 0;
-  if (!noAssert) checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000);
-  if (value < 0) value = 0xffffffff + value + 1;
-  if (Buffer.TYPED_ARRAY_SUPPORT) {
-    this[offset] = (value >>> 24);
-    this[offset + 1] = (value >>> 16);
-    this[offset + 2] = (value >>> 8);
-    this[offset + 3] = (value & 0xff);
-  } else {
-    objectWriteUInt32(this, value, offset, false);
-  }
-  return offset + 4
-};
-
-function checkIEEE754 (buf, value, offset, ext, max, min) {
-  if (offset + ext > buf.length) throw new RangeError('Index out of range')
-  if (offset < 0) throw new RangeError('Index out of range')
-}
-
-function writeFloat (buf, value, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    checkIEEE754(buf, value, offset, 4);
-  }
-  write(buf, value, offset, littleEndian, 23, 4);
-  return offset + 4
-}
-
-Buffer.prototype.writeFloatLE = function writeFloatLE (value, offset, noAssert) {
-  return writeFloat(this, value, offset, true, noAssert)
-};
-
-Buffer.prototype.writeFloatBE = function writeFloatBE (value, offset, noAssert) {
-  return writeFloat(this, value, offset, false, noAssert)
-};
-
-function writeDouble (buf, value, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    checkIEEE754(buf, value, offset, 8);
-  }
-  write(buf, value, offset, littleEndian, 52, 8);
-  return offset + 8
-}
-
-Buffer.prototype.writeDoubleLE = function writeDoubleLE (value, offset, noAssert) {
-  return writeDouble(this, value, offset, true, noAssert)
-};
-
-Buffer.prototype.writeDoubleBE = function writeDoubleBE (value, offset, noAssert) {
-  return writeDouble(this, value, offset, false, noAssert)
-};
-
-// copy(targetBuffer, targetStart=0, sourceStart=0, sourceEnd=buffer.length)
-Buffer.prototype.copy = function copy (target, targetStart, start, end) {
-  if (!start) start = 0;
-  if (!end && end !== 0) end = this.length;
-  if (targetStart >= target.length) targetStart = target.length;
-  if (!targetStart) targetStart = 0;
-  if (end > 0 && end < start) end = start;
-
-  // Copy 0 bytes; we're done
-  if (end === start) return 0
-  if (target.length === 0 || this.length === 0) return 0
-
-  // Fatal error conditions
-  if (targetStart < 0) {
-    throw new RangeError('targetStart out of bounds')
-  }
-  if (start < 0 || start >= this.length) throw new RangeError('sourceStart out of bounds')
-  if (end < 0) throw new RangeError('sourceEnd out of bounds')
-
-  // Are we oob?
-  if (end > this.length) end = this.length;
-  if (target.length - targetStart < end - start) {
-    end = target.length - targetStart + start;
-  }
-
-  var len = end - start;
-  var i;
-
-  if (this === target && start < targetStart && targetStart < end) {
-    // descending copy from end
-    for (i = len - 1; i >= 0; --i) {
-      target[i + targetStart] = this[i + start];
-    }
-  } else if (len < 1000 || !Buffer.TYPED_ARRAY_SUPPORT) {
-    // ascending copy from start
-    for (i = 0; i < len; ++i) {
-      target[i + targetStart] = this[i + start];
-    }
-  } else {
-    Uint8Array.prototype.set.call(
-      target,
-      this.subarray(start, start + len),
-      targetStart
-    );
-  }
-
-  return len
-};
-
-// Usage:
-//    buffer.fill(number[, offset[, end]])
-//    buffer.fill(buffer[, offset[, end]])
-//    buffer.fill(string[, offset[, end]][, encoding])
-Buffer.prototype.fill = function fill (val, start, end, encoding) {
-  // Handle string cases:
-  if (typeof val === 'string') {
-    if (typeof start === 'string') {
-      encoding = start;
-      start = 0;
-      end = this.length;
-    } else if (typeof end === 'string') {
-      encoding = end;
-      end = this.length;
-    }
-    if (val.length === 1) {
-      var code = val.charCodeAt(0);
-      if (code < 256) {
-        val = code;
-      }
-    }
-    if (encoding !== undefined && typeof encoding !== 'string') {
-      throw new TypeError('encoding must be a string')
-    }
-    if (typeof encoding === 'string' && !Buffer.isEncoding(encoding)) {
-      throw new TypeError('Unknown encoding: ' + encoding)
-    }
-  } else if (typeof val === 'number') {
-    val = val & 255;
-  }
-
-  // Invalid ranges are not set to a default, so can range check early.
-  if (start < 0 || this.length < start || this.length < end) {
-    throw new RangeError('Out of range index')
-  }
-
-  if (end <= start) {
-    return this
-  }
-
-  start = start >>> 0;
-  end = end === undefined ? this.length : end >>> 0;
-
-  if (!val) val = 0;
-
-  var i;
-  if (typeof val === 'number') {
-    for (i = start; i < end; ++i) {
-      this[i] = val;
-    }
-  } else {
-    var bytes = internalIsBuffer(val)
-      ? val
-      : utf8ToBytes(new Buffer(val, encoding).toString());
-    var len = bytes.length;
-    for (i = 0; i < end - start; ++i) {
-      this[i + start] = bytes[i % len];
-    }
-  }
-
-  return this
-};
-
-// HELPER FUNCTIONS
-// ================
-
-var INVALID_BASE64_RE = /[^+\/0-9A-Za-z-_]/g;
-
-function base64clean (str) {
-  // Node strips out invalid characters like \n and \t from the string, base64-js does not
-  str = stringtrim(str).replace(INVALID_BASE64_RE, '');
-  // Node converts strings with length < 2 to ''
-  if (str.length < 2) return ''
-  // Node allows for non-padded base64 strings (missing trailing ===), base64-js does not
-  while (str.length % 4 !== 0) {
-    str = str + '=';
-  }
-  return str
-}
-
-function stringtrim (str) {
-  if (str.trim) return str.trim()
-  return str.replace(/^\s+|\s+$/g, '')
-}
-
-function toHex (n) {
-  if (n < 16) return '0' + n.toString(16)
-  return n.toString(16)
-}
-
-function utf8ToBytes (string, units) {
-  units = units || Infinity;
-  var codePoint;
-  var length = string.length;
-  var leadSurrogate = null;
-  var bytes = [];
-
-  for (var i = 0; i < length; ++i) {
-    codePoint = string.charCodeAt(i);
-
-    // is surrogate component
-    if (codePoint > 0xD7FF && codePoint < 0xE000) {
-      // last char was a lead
-      if (!leadSurrogate) {
-        // no lead yet
-        if (codePoint > 0xDBFF) {
-          // unexpected trail
-          if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD);
-          continue
-        } else if (i + 1 === length) {
-          // unpaired lead
-          if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD);
-          continue
-        }
-
-        // valid lead
-        leadSurrogate = codePoint;
-
-        continue
-      }
-
-      // 2 leads in a row
-      if (codePoint < 0xDC00) {
-        if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD);
-        leadSurrogate = codePoint;
-        continue
-      }
-
-      // valid surrogate pair
-      codePoint = (leadSurrogate - 0xD800 << 10 | codePoint - 0xDC00) + 0x10000;
-    } else if (leadSurrogate) {
-      // valid bmp char, but last char was a lead
-      if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD);
-    }
-
-    leadSurrogate = null;
-
-    // encode utf8
-    if (codePoint < 0x80) {
-      if ((units -= 1) < 0) break
-      bytes.push(codePoint);
-    } else if (codePoint < 0x800) {
-      if ((units -= 2) < 0) break
-      bytes.push(
-        codePoint >> 0x6 | 0xC0,
-        codePoint & 0x3F | 0x80
-      );
-    } else if (codePoint < 0x10000) {
-      if ((units -= 3) < 0) break
-      bytes.push(
-        codePoint >> 0xC | 0xE0,
-        codePoint >> 0x6 & 0x3F | 0x80,
-        codePoint & 0x3F | 0x80
-      );
-    } else if (codePoint < 0x110000) {
-      if ((units -= 4) < 0) break
-      bytes.push(
-        codePoint >> 0x12 | 0xF0,
-        codePoint >> 0xC & 0x3F | 0x80,
-        codePoint >> 0x6 & 0x3F | 0x80,
-        codePoint & 0x3F | 0x80
-      );
-    } else {
-      throw new Error('Invalid code point')
-    }
-  }
-
-  return bytes
-}
-
-function asciiToBytes (str) {
-  var byteArray = [];
-  for (var i = 0; i < str.length; ++i) {
-    // Node's code seems to be doing this and not & 0x7F..
-    byteArray.push(str.charCodeAt(i) & 0xFF);
-  }
-  return byteArray
-}
-
-function utf16leToBytes (str, units) {
-  var c, hi, lo;
-  var byteArray = [];
-  for (var i = 0; i < str.length; ++i) {
-    if ((units -= 2) < 0) break
-
-    c = str.charCodeAt(i);
-    hi = c >> 8;
-    lo = c % 256;
-    byteArray.push(lo);
-    byteArray.push(hi);
-  }
-
-  return byteArray
-}
-
-
-function base64ToBytes (str) {
-  return toByteArray(base64clean(str))
-}
-
-function blitBuffer (src, dst, offset, length) {
-  for (var i = 0; i < length; ++i) {
-    if ((i + offset >= dst.length) || (i >= src.length)) break
-    dst[i + offset] = src[i];
-  }
-  return i
-}
-
-function isnan (val) {
-  return val !== val // eslint-disable-line no-self-compare
-}
-
-
-// the following is from is-buffer, also by Feross Aboukhadijeh and with same lisence
-// The _isBuffer check is for Safari 5-7 support, because it's missing
-// Object.prototype.constructor. Remove this eventually
-function isBuffer(obj) {
-  return obj != null && (!!obj._isBuffer || isFastBuffer(obj) || isSlowBuffer(obj))
-}
-
-function isFastBuffer (obj) {
-  return !!obj.constructor && typeof obj.constructor.isBuffer === 'function' && obj.constructor.isBuffer(obj)
-}
-
-// For Node v0.10 support. Remove this eventually.
-function isSlowBuffer (obj) {
-  return typeof obj.readFloatLE === 'function' && typeof obj.slice === 'function' && isFastBuffer(obj.slice(0, 0))
-}
-
-/* ES Module Shims 0.10.3 */
 (function () {
 
-  const resolvedPromise = Promise.resolve();
+  const self_ = typeof globalThis !== 'undefined' ? globalThis : self;
 
-  let baseUrl;
+  let invalidate;
+  const hotReload$1 = url => invalidate(new URL(url, baseUrl).href);
+  const initHotReload = (topLevelLoad, importShim) => {
+    let _importHook = importHook,
+      _resolveHook = resolveHook,
+      _metaHook = metaHook;
 
-  function createBlob (source, type = 'text/javascript') {
-    return URL.createObjectURL(new Blob([source], { type }));
-  }
+    let defaultResolve;
+    let hotResolveHook = (id, parent, _defaultResolve) => {
+      if (!defaultResolve) defaultResolve = _defaultResolve;
+      const originalParent = stripVersion(parent);
+      const url = stripVersion(defaultResolve(id, originalParent));
+      const hotState = getHotState(url);
+      const parents = hotState.p;
+      if (!parents.includes(originalParent)) parents.push(originalParent);
+      return toVersioned(url, hotState);
+    };
+    const hotImportHook = (url, _, __, source, sourceType) => {
+      const hotState = getHotState(url);
+      hotState.e = typeof source === 'string' ? source : true;
+      hotState.t = sourceType;
+    };
+    const hotMetaHook = (metaObj, url) => (metaObj.hot = new Hot(url));
+
+    const Hot = class Hot {
+      constructor(url) {
+        this.data = getHotState((this.url = stripVersion(url))).d;
+      }
+      accept(deps, cb) {
+        if (typeof deps === 'function') {
+          cb = deps;
+          deps = null;
+        }
+        const hotState = getHotState(this.url);
+        if (!hotState.A) return;
+        (hotState.a = hotState.a || []).push([
+          typeof deps === 'string' ? defaultResolve(deps, this.url)
+          : deps ? deps.map(d => defaultResolve(d, this.url))
+          : null,
+          cb
+        ]);
+      }
+      dispose(cb) {
+        getHotState(this.url).u = cb;
+      }
+      invalidate() {
+        const hotState = getHotState(this.url);
+        hotState.a = hotState.A = null;
+        const seen = [this.url];
+        hotState.p.forEach(p => invalidate(p, this.url, seen));
+      }
+    };
+
+    const versionedRegEx = /\?v=\d+$/;
+    const stripVersion = url => {
+      const versionMatch = url.match(versionedRegEx);
+      return versionMatch ? url.slice(0, -versionMatch[0].length) : url;
+    };
+
+    const toVersioned = (url, hotState) => {
+      const { v } = hotState;
+      return url + (v ? '?v=' + v : '');
+    };
+
+    let hotRegistry = {},
+      curInvalidationRoots = new Set(),
+      curInvalidationInterval;
+    const getHotState = url =>
+      hotRegistry[url] ||
+      (hotRegistry[url] = {
+        // version
+        v: 0,
+        // accept list ([deps, cb] pairs)
+        a: null,
+        // accepting acceptors
+        A: true,
+        // unload callback
+        u: null,
+        // entry point or inline script source
+        e: false,
+        // hot data
+        d: {},
+        // parents
+        p: [],
+        // source type
+        t: undefined
+      });
+
+    invalidate = (url, fromUrl, seen = []) => {
+      const hotState = hotRegistry[url];
+      if (!hotState || seen.includes(url)) return false;
+      seen.push(url);
+      hotState.A = false;
+      if (
+        fromUrl &&
+        hotState.a &&
+        hotState.a.some(([d]) => d && (typeof d === 'string' ? d === fromUrl : d.includes(fromUrl)))
+      ) {
+        curInvalidationRoots.add(fromUrl);
+      } else {
+        if (hotState.e || hotState.a) curInvalidationRoots.add(url);
+        hotState.v++;
+        if (!hotState.a) hotState.p.forEach(p => invalidate(p, url, seen));
+      }
+      if (!curInvalidationInterval) curInvalidationInterval = setTimeout(handleInvalidations, hotReloadInterval);
+      return true;
+    };
+
+    const handleInvalidations = () => {
+      curInvalidationInterval = null;
+      const earlyRoots = new Set();
+      for (const root of curInvalidationRoots) {
+        const hotState = hotRegistry[root];
+        topLevelLoad(
+          toVersioned(root, hotState),
+          baseUrl,
+          defaultFetchOpts,
+          typeof hotState.e === 'string' ? hotState.e : undefined,
+          false,
+          undefined,
+          hotState.t
+        ).then(m => {
+          if (hotState.a) {
+            hotState.a.forEach(([d, c]) => d === null && !earlyRoots.has(c) && c(m));
+            // unload should be the latest unload handler from the just loaded module
+            if (hotState.u) {
+              hotState.u(hotState.d);
+              hotState.u = null;
+            }
+          }
+          hotState.p.forEach(p => {
+            const hotState = hotRegistry[p];
+            if (hotState && hotState.a)
+              hotState.a.forEach(
+                async ([d, c]) =>
+                  d &&
+                  !earlyRoots.has(c) &&
+                  (typeof d === 'string' ?
+                    d === root && c(m)
+                  : c(await Promise.all(d.map(d => (earlyRoots.push(c), importShim(toVersioned(d, getHotState(d))))))))
+              );
+          });
+        }, throwError);
+      }
+      curInvalidationRoots = new Set();
+    };
+
+    setHooks(
+      _importHook ? chain(_importHook, hotImportHook) : hotImportHook,
+      _resolveHook ?
+        (id, parent, defaultResolve) =>
+          hotResolveHook(id, parent, (id, parent) => _resolveHook(id, parent, defaultResolve))
+      : hotResolveHook,
+      _metaHook ? chain(_metaHook, hotMetaHook) : hotMetaHook
+    );
+  };
 
   const hasDocument = typeof document !== 'undefined';
 
-  // support browsers without dynamic import support (eg Firefox 6x)
-  let supportsDynamicImport = false;
-  let dynamicImport;
-  try {
-    dynamicImport = (0, eval)('u=>import(u)');
-    supportsDynamicImport = true;
+  const noop = () => {};
+
+  const chain = (a, b) =>
+    function () {
+      a.apply(this, arguments);
+      b.apply(this, arguments);
+    };
+
+  const dynamicImport = (u, _errUrl) => import(u);
+
+  const defineValue = (obj, prop, value) =>
+    Object.defineProperty(obj, prop, { writable: false, configurable: false, value });
+
+  const optionsScript = hasDocument ? document.querySelector('script[type=esms-options]') : undefined;
+
+  const esmsInitOptions = optionsScript ? JSON.parse(optionsScript.innerHTML) : {};
+  Object.assign(esmsInitOptions, self_.esmsInitOptions || {});
+
+  const version = "2.6.2";
+
+  const r$1 = esmsInitOptions.version;
+  if (self_.importShim || (r$1 && r$1 !== version)) {
+    return;
   }
-  catch (e) {
-    if (hasDocument) {
-      let err;
-      self.addEventListener('error', e => err = e.error);
-      dynamicImport = blobUrl => {
-        const topLevelBlobUrl = createBlob(
-          `import*as m from'${blobUrl}';self._esmsm=m`
-        );
-        const s = document.createElement('script');
-        s.type = 'module';
-        s.src = topLevelBlobUrl;
-        document.head.appendChild(s);
-        return new Promise((resolve, reject) => {
-          s.addEventListener('load', () => {
-            document.head.removeChild(s);
-            if ('_esmsm' in self) {
-              resolve(self._esmsm, baseUrl);
-              delete self._esmsm;
-            }
-            else {
-              reject(err);
-            }
-          });
-        });
+
+  // shim mode is determined on initialization, no late shim mode
+  const shimMode =
+    esmsInitOptions.shimMode ||
+    (hasDocument ?
+      document.querySelectorAll('script[type=module-shim],script[type=importmap-shim],link[rel=modulepreload-shim]')
+        .length > 0
+      // Without a document, shim mode is always true as we cannot polyfill
+    : true);
+
+  let importHook,
+    resolveHook,
+    fetchHook = fetch,
+    sourceHook,
+    metaHook,
+    tsTransform =
+      esmsInitOptions.tsTransform ||
+      (hasDocument && document.currentScript && document.currentScript.src.replace(/(\.\w+)?\.js$/, '-typescript.js')) ||
+      './es-module-shims-typescript.js';
+
+  const defaultFetchOpts = { credentials: 'same-origin' };
+
+  const globalHook = name => (typeof name === 'string' ? self_[name] : name);
+
+  if (esmsInitOptions.onimport) importHook = globalHook(esmsInitOptions.onimport);
+  if (esmsInitOptions.resolve) resolveHook = globalHook(esmsInitOptions.resolve);
+  if (esmsInitOptions.fetch) fetchHook = globalHook(esmsInitOptions.fetch);
+  if (esmsInitOptions.source) sourceHook = globalHook(esmsInitOptions.source);
+  if (esmsInitOptions.meta) metaHook = globalHook(esmsInitOptions.meta);
+
+  const hasCustomizationHooks = importHook || resolveHook || fetchHook !== fetch || sourceHook || metaHook;
+
+  const {
+    noLoadEventRetriggers,
+    enforceIntegrity,
+    hotReload,
+    hotReloadInterval = 100,
+    nativePassthrough = !hasCustomizationHooks && !hotReload
+  } = esmsInitOptions;
+
+  const setHooks = (importHook_, resolveHook_, metaHook_) => (
+    (importHook = importHook_),
+    (resolveHook = resolveHook_),
+    (metaHook = metaHook_)
+  );
+
+  const mapOverrides = esmsInitOptions.mapOverrides;
+
+  let nonce = esmsInitOptions.nonce;
+  if (!nonce && hasDocument) {
+    const nonceElement = document.querySelector('script[nonce]');
+    if (nonceElement) nonce = nonceElement.nonce || nonceElement.getAttribute('nonce');
+  }
+
+  const onerror = globalHook(esmsInitOptions.onerror || console.error.bind(console));
+
+  const enable = Array.isArray(esmsInitOptions.polyfillEnable) ? esmsInitOptions.polyfillEnable : [];
+  const disable = Array.isArray(esmsInitOptions.polyfillDisable) ? esmsInitOptions.polyfillDisable : [];
+
+  const enableAll = esmsInitOptions.polyfillEnable === 'all' || enable.includes('all');
+  const wasmInstancePhaseEnabled =
+    enable.includes('wasm-modules') || enable.includes('wasm-module-instances') || enableAll;
+  const wasmSourcePhaseEnabled =
+    enable.includes('wasm-modules') || enable.includes('wasm-module-sources') || enableAll;
+  const deferPhaseEnabled = enable.includes('import-defer') || enableAll;
+  const cssModulesEnabled = !disable.includes('css-modules');
+  const jsonModulesEnabled = !disable.includes('json-modules');
+
+  const onpolyfill =
+    esmsInitOptions.onpolyfill ?
+      globalHook(esmsInitOptions.onpolyfill)
+    : () => {
+        console.log(`%c^^ Module error above is polyfilled and can be ignored ^^`, 'font-weight:900;color:#391');
       };
-    }
+
+  const baseUrl =
+    hasDocument ? document.baseURI
+    : typeof location !== 'undefined' ?
+      `${location.protocol}//${location.host}${
+      location.pathname.includes('/') ?
+        location.pathname.slice(0, location.pathname.lastIndexOf('/') + 1)
+      : location.pathname
+    }`
+    : 'about:blank';
+
+  const createBlob = (source, type = 'text/javascript') => URL.createObjectURL(new Blob([source], { type }));
+  let { skip } = esmsInitOptions;
+  if (Array.isArray(skip)) {
+    const l = skip.map(s => new URL(s, baseUrl).href);
+    skip = s => l.some(i => (i[i.length - 1] === '/' && s.startsWith(i)) || s === i);
+  } else if (typeof skip === 'string') {
+    const r = new RegExp(skip);
+    skip = s => r.test(s);
+  } else if (skip instanceof RegExp) {
+    skip = s => skip.test(s);
   }
 
-  let supportsImportMeta = false;
-  let supportsImportMaps = false;
+  const dispatchError = error => self_.dispatchEvent(Object.assign(new Event('error'), { error }));
 
-  const featureDetectionPromise = Promise.all([
-    dynamicImport(createBlob('import.meta')).then(() => supportsImportMeta = true),
-    supportsDynamicImport && hasDocument && new Promise(resolve => {
-      self._$s = v => {
-        document.body.removeChild(iframe);
-        if (v) supportsImportMaps = true;
-        delete self._$s;
-        resolve();
-      };
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = createBlob(`<script type=importmap>{"imports":{"x":"data:text/javascript,"}}<${''}/script><script>import('x').then(()=>1,()=>0).then(v=>parent._$s(v))<${''}/script>`, 'text/html');
-      document.body.appendChild(iframe);
-    })
-  ]);
+  const throwError = err => {
+    (self_.reportError || dispatchError)(err);
+    onerror(err);
+  };
 
-  if (hasDocument) {
-    const baseEl = document.querySelector('base[href]');
-    if (baseEl)
-      baseUrl = baseEl.href;
-  }
-
-  if (!baseUrl && typeof location !== 'undefined') {
-    baseUrl = location.href.split('#')[0].split('?')[0];
-    const lastSepIndex = baseUrl.lastIndexOf('/');
-    if (lastSepIndex !== -1)
-      baseUrl = baseUrl.slice(0, lastSepIndex + 1);
-  }
+  const fromParent = parent => (parent ? ` imported from ${parent}` : '');
 
   const backslashRegEx = /\\/g;
-  function resolveIfNotPlainOrUrl (relUrl, parentUrl) {
-    // strip off any trailing query params or hashes
-    parentUrl = parentUrl && parentUrl.split('#')[0].split('?')[0];
-    if (relUrl.indexOf('\\') !== -1)
-      relUrl = relUrl.replace(backslashRegEx, '/');
+
+  const asURL = url => {
+    try {
+      if (url.indexOf(':') !== -1) return new URL(url).href;
+    } catch (_) {}
+  };
+
+  const resolveUrl = (relUrl, parentUrl) =>
+    resolveIfNotPlainOrUrl(relUrl, parentUrl) || asURL(relUrl) || resolveIfNotPlainOrUrl('./' + relUrl, parentUrl);
+
+  const resolveIfNotPlainOrUrl = (relUrl, parentUrl) => {
+    const hIdx = parentUrl.indexOf('#'),
+      qIdx = parentUrl.indexOf('?');
+    if (hIdx + qIdx > -2)
+      parentUrl = parentUrl.slice(
+        0,
+        hIdx === -1 ? qIdx
+        : qIdx === -1 || qIdx > hIdx ? hIdx
+        : qIdx
+      );
+    if (relUrl.indexOf('\\') !== -1) relUrl = relUrl.replace(backslashRegEx, '/');
     // protocol-relative
     if (relUrl[0] === '/' && relUrl[1] === '/') {
       return parentUrl.slice(0, parentUrl.indexOf(':') + 1) + relUrl;
     }
     // relative-url
-    else if (relUrl[0] === '.' && (relUrl[1] === '/' || relUrl[1] === '.' && (relUrl[2] === '/' || relUrl.length === 2 && (relUrl += '/')) ||
-        relUrl.length === 1  && (relUrl += '/')) ||
-        relUrl[0] === '/') {
+    else if (
+      (relUrl[0] === '.' &&
+        (relUrl[1] === '/' ||
+          (relUrl[1] === '.' && (relUrl[2] === '/' || (relUrl.length === 2 && (relUrl += '/')))) ||
+          (relUrl.length === 1 && (relUrl += '/')))) ||
+      relUrl[0] === '/'
+    ) {
       const parentProtocol = parentUrl.slice(0, parentUrl.indexOf(':') + 1);
+      if (parentProtocol === 'blob:') {
+        throw new TypeError(
+          `Failed to resolve module specifier "${relUrl}". Invalid relative url or base scheme isn't hierarchical.`
+        );
+      }
       // Disabled, but these cases will give inconsistent results for deep backtracking
       //if (parentUrl[parentProtocol.length] !== '/')
       //  throw new Error('Cannot resolve');
@@ -2076,18 +348,15 @@ function isSlowBuffer (obj) {
         if (parentProtocol !== 'file:') {
           pathname = parentUrl.slice(parentProtocol.length + 2);
           pathname = pathname.slice(pathname.indexOf('/') + 1);
-        }
-        else {
+        } else {
           pathname = parentUrl.slice(8);
         }
-      }
-      else {
+      } else {
         // resolving to :/ so pathname is the /... part
         pathname = parentUrl.slice(parentProtocol.length + (parentUrl[parentProtocol.length] === '/'));
       }
 
-      if (relUrl[0] === '/')
-        return parentUrl.slice(0, parentUrl.length - pathname.length - 1) + relUrl;
+      if (relUrl[0] === '/') return parentUrl.slice(0, parentUrl.length - pathname.length - 1) + relUrl;
 
       // join together and split for removal of .. and . segments
       // looping the string instead of anything fancy for perf reasons
@@ -2103,284 +372,820 @@ function isSlowBuffer (obj) {
             output.push(segmented.slice(segmentIndex, i + 1));
             segmentIndex = -1;
           }
+          continue;
         }
-
         // new segment - check if it is relative
         else if (segmented[i] === '.') {
           // ../ segment
           if (segmented[i + 1] === '.' && (segmented[i + 2] === '/' || i + 2 === segmented.length)) {
             output.pop();
             i += 2;
+            continue;
           }
           // ./ segment
           else if (segmented[i + 1] === '/' || i + 1 === segmented.length) {
             i += 1;
-          }
-          else {
-            // the start of a new segment as below
-            segmentIndex = i;
+            continue;
           }
         }
         // it is the start of a new segment
-        else {
-          segmentIndex = i;
-        }
+        while (segmented[i] === '/') i++;
+        segmentIndex = i;
       }
       // finish reading out the last segment
-      if (segmentIndex !== -1)
-        output.push(segmented.slice(segmentIndex));
+      if (segmentIndex !== -1) output.push(segmented.slice(segmentIndex));
       return parentUrl.slice(0, parentUrl.length - pathname.length) + output.join('');
     }
-  }
+  };
 
-  /*
-   * Import maps implementation
-   *
-   * To make lookups fast we pre-resolve the entire import map
-   * and then match based on backtracked hash lookups
-   *
-   */
-  function resolveUrl (relUrl, parentUrl) {
-    return resolveIfNotPlainOrUrl(relUrl, parentUrl) || (relUrl.indexOf(':') !== -1 ? relUrl : resolveIfNotPlainOrUrl('./' + relUrl, parentUrl));
-  }
+  const resolveAndComposeImportMap = (json, baseUrl, parentMap) => {
+    const outMap = {
+      imports: { ...parentMap.imports },
+      scopes: { ...parentMap.scopes },
+      integrity: { ...parentMap.integrity }
+    };
 
-  function resolveAndComposePackages (packages, outPackages, baseUrl, parentMap) {
+    if (json.imports) resolveAndComposePackages(json.imports, outMap.imports, baseUrl, parentMap);
+
+    if (json.scopes)
+      for (let s in json.scopes) {
+        const resolvedScope = resolveUrl(s, baseUrl);
+        resolveAndComposePackages(
+          json.scopes[s],
+          outMap.scopes[resolvedScope] || (outMap.scopes[resolvedScope] = {}),
+          baseUrl,
+          parentMap
+        );
+      }
+
+    if (json.integrity) resolveAndComposeIntegrity(json.integrity, outMap.integrity, baseUrl);
+
+    return outMap;
+  };
+
+  const getMatch = (path, matchObj) => {
+    if (matchObj[path]) return path;
+    let sepIndex = path.length;
+    do {
+      const segment = path.slice(0, sepIndex + 1);
+      if (segment in matchObj) return segment;
+    } while ((sepIndex = path.lastIndexOf('/', sepIndex - 1)) !== -1);
+  };
+
+  const applyPackages = (id, packages) => {
+    const pkgName = getMatch(id, packages);
+    if (pkgName) {
+      const pkg = packages[pkgName];
+      if (pkg === null) return;
+      return pkg + id.slice(pkgName.length);
+    }
+  };
+
+  const resolveImportMap = (importMap, resolvedOrPlain, parentUrl) => {
+    let scopeUrl = parentUrl && getMatch(parentUrl, importMap.scopes);
+    while (scopeUrl) {
+      const packageResolution = applyPackages(resolvedOrPlain, importMap.scopes[scopeUrl]);
+      if (packageResolution) return packageResolution;
+      scopeUrl = getMatch(scopeUrl.slice(0, scopeUrl.lastIndexOf('/')), importMap.scopes);
+    }
+    return applyPackages(resolvedOrPlain, importMap.imports) || (resolvedOrPlain.indexOf(':') !== -1 && resolvedOrPlain);
+  };
+
+  const resolveAndComposePackages = (packages, outPackages, baseUrl, parentMap) => {
     for (let p in packages) {
       const resolvedLhs = resolveIfNotPlainOrUrl(p, baseUrl) || p;
-      let target = packages[p];
-      if (typeof target !== 'string') 
+      if (
+        (!shimMode || !mapOverrides) &&
+        outPackages[resolvedLhs] &&
+        outPackages[resolvedLhs] !== packages[resolvedLhs]
+      ) {
+        console.warn(
+          `es-module-shims: Rejected map override "${resolvedLhs}" from ${outPackages[resolvedLhs]} to ${packages[resolvedLhs]}.`
+        );
         continue;
+      }
+      let target = packages[p];
+      if (typeof target !== 'string') continue;
       const mapped = resolveImportMap(parentMap, resolveIfNotPlainOrUrl(target, baseUrl) || target, baseUrl);
       if (mapped) {
         outPackages[resolvedLhs] = mapped;
         continue;
       }
-      targetWarning(p, packages[p], 'bare specifier did not resolve');
+      console.warn(`es-module-shims: Mapping "${p}" -> "${packages[p]}" does not resolve`);
     }
-  }
+  };
 
-  function resolveAndComposeImportMap (json, baseUrl, parentMap) {
-    const outMap = { imports: Object.assign({}, parentMap.imports), scopes: Object.assign({}, parentMap.scopes) };
+  const resolveAndComposeIntegrity = (integrity, outIntegrity, baseUrl) => {
+    for (let p in integrity) {
+      const resolvedLhs = resolveIfNotPlainOrUrl(p, baseUrl) || p;
+      if (
+        (!shimMode || !mapOverrides) &&
+        outIntegrity[resolvedLhs] &&
+        outIntegrity[resolvedLhs] !== integrity[resolvedLhs]
+      ) {
+        console.warn(
+          `es-module-shims: Rejected map integrity override "${resolvedLhs}" from ${outIntegrity[resolvedLhs]} to ${integrity[resolvedLhs]}.`
+        );
+      }
+      outIntegrity[resolvedLhs] = integrity[p];
+    }
+  };
 
-    if (json.imports)
-      resolveAndComposePackages(json.imports, outMap.imports, baseUrl, parentMap);
+  // support browsers without dynamic import support (eg Firefox 6x)
+  let supportsJsonType = false;
+  let supportsCssType = false;
 
-    if (json.scopes)
-      for (let s in json.scopes) {
-        const resolvedScope = resolveUrl(s, baseUrl);
-        resolveAndComposePackages(json.scopes[s], outMap.scopes[resolvedScope] || (outMap.scopes[resolvedScope] = {}), baseUrl, parentMap);
+  const supports = hasDocument && HTMLScriptElement.supports;
+
+  let supportsImportMaps = supports && supports.name === 'supports' && supports('importmap');
+  let supportsWasmInstancePhase = false;
+  let supportsWasmSourcePhase = false;
+  let supportsMultipleImportMaps = false;
+
+  const wasmBytes = [0, 97, 115, 109, 1, 0, 0, 0];
+
+  let featureDetectionPromise = (async function () {
+    if (!hasDocument)
+      return Promise.all([
+        import(createBlob(`import"${createBlob('{}', 'text/json')}"with{type:"json"}`)).then(
+          () => (
+            (supportsJsonType = true),
+            import(createBlob(`import"${createBlob('', 'text/css')}"with{type:"css"}`)).then(
+              () => (supportsCssType = true),
+              noop
+            )
+          ),
+          noop
+        ),
+        wasmInstancePhaseEnabled &&
+          import(createBlob(`import"${createBlob(new Uint8Array(wasmBytes), 'application/wasm')}"`)).then(
+            () => (supportsWasmInstancePhase = true),
+            noop
+          ),
+        wasmSourcePhaseEnabled &&
+          import(createBlob(`import source x from"${createBlob(new Uint8Array(wasmBytes), 'application/wasm')}"`)).then(
+            () => (supportsWasmSourcePhase = true),
+            noop
+          )
+      ]);
+
+    const msgTag = `s${version}`;
+    return new Promise(resolve => {
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.setAttribute('nonce', nonce);
+      function cb({ data }) {
+        const isFeatureDetectionMessage = Array.isArray(data) && data[0] === msgTag;
+        if (!isFeatureDetectionMessage) return;
+        [
+          ,
+          supportsImportMaps,
+          supportsMultipleImportMaps,
+          supportsJsonType,
+          supportsCssType,
+          supportsWasmSourcePhase,
+          supportsWasmInstancePhase
+        ] = data;
+        resolve();
+        document.head.removeChild(iframe);
+        window.removeEventListener('message', cb, false);
+      }
+      window.addEventListener('message', cb, false);
+
+      // Feature checking with careful avoidance of unnecessary work - all gated on initial import map supports check. CSS gates on JSON feature check, Wasm instance phase gates on wasm source phase check.
+      const importMapTest = `<script nonce=${nonce || ''}>b=(s,type='text/javascript')=>URL.createObjectURL(new Blob([s],{type}));c=u=>import(u).then(()=>true,()=>false);i=innerText=>document.head.appendChild(Object.assign(document.createElement('script'),{type:'importmap',nonce:"${nonce}",innerText}));i(\`{"imports":{"x":"\${b('')}"}}\`);i(\`{"imports":{"y":"\${b('')}"}}\`);cm=${
+      supportsImportMaps && jsonModulesEnabled ? `c(b(\`import"\${b('{}','text/json')}"with{type:"json"}\`))` : 'false'
+    };sp=${
+      supportsImportMaps && wasmSourcePhaseEnabled ?
+        `c(b(\`import source x from "\${b(new Uint8Array(${JSON.stringify(wasmBytes)}),'application/wasm')\}"\`))`
+      : 'false'
+    };Promise.all([${supportsImportMaps ? 'true' : "c('x')"},${supportsImportMaps ? "c('y')" : false},cm,${
+      supportsImportMaps && cssModulesEnabled ?
+        `cm.then(s=>s?c(b(\`import"\${b('','text/css')\}"with{type:"css"}\`)):false)`
+      : 'false'
+    },sp,${
+      supportsImportMaps && wasmInstancePhaseEnabled ?
+        `${wasmSourcePhaseEnabled ? 'sp.then(s=>s?' : ''}c(b(\`import"\${b(new Uint8Array(${JSON.stringify(wasmBytes)}),'application/wasm')\}"\`))${wasmSourcePhaseEnabled ? ':false)' : ''}`
+      : 'false'
+    }]).then(a=>parent.postMessage(['${msgTag}'].concat(a),'*'))<${''}/script>`;
+
+      // Safari will call onload eagerly on head injection, but we don't want the Wechat
+      // path to trigger before setting srcdoc, therefore we track the timing
+      let readyForOnload = false,
+        onloadCalledWhileNotReady = false;
+      function doOnload() {
+        if (!readyForOnload) {
+          onloadCalledWhileNotReady = true;
+          return;
+        }
+        // WeChat browser doesn't support setting srcdoc scripts
+        // But iframe sandboxes don't support contentDocument so we do this as a fallback
+        const doc = iframe.contentDocument;
+        if (doc && doc.head.childNodes.length === 0) {
+          const s = doc.createElement('script');
+          if (nonce) s.setAttribute('nonce', nonce);
+          s.innerHTML = importMapTest.slice(15 + (nonce ? nonce.length : 0), -9);
+          doc.head.appendChild(s);
+        }
       }
 
-    return outMap;
-  }
+      iframe.onload = doOnload;
+      // WeChat browser requires append before setting srcdoc
+      document.head.appendChild(iframe);
 
-  function getMatch (path, matchObj) {
-    if (matchObj[path])
-      return path;
-    let sepIndex = path.length;
-    do {
-      const segment = path.slice(0, sepIndex + 1);
-      if (segment in matchObj)
-        return segment;
-    } while ((sepIndex = path.lastIndexOf('/', sepIndex - 1)) !== -1)
-  }
+      // setting srcdoc is not supported in React native webviews on iOS
+      // setting src to a blob URL results in a navigation event in webviews
+      // document.write gives usability warnings
+      readyForOnload = true;
+      if ('srcdoc' in iframe) iframe.srcdoc = importMapTest;
+      else iframe.contentDocument.write(importMapTest);
+      // retrigger onload for Safari only if necessary
+      if (onloadCalledWhileNotReady) doOnload();
+    });
+  })();
 
-  function applyPackages (id, packages) {
-    const pkgName = getMatch(id, packages);
-    if (pkgName) {
-      const pkg = packages[pkgName];
-      if (pkg === null) return;
-      if (id.length > pkgName.length && pkg[pkg.length - 1] !== '/')
-        targetWarning(pkgName, pkg, "should have a trailing '/'");
-      else
-        return pkg + id.slice(pkgName.length);
+  /* es-module-lexer 1.7.0 */
+  let e,a,r,i=2<<19;const s=1===new Uint8Array(new Uint16Array([1]).buffer)[0]?function(e,a){const r=e.length;let i=0;for(;i<r;)a[i]=e.charCodeAt(i++);}:function(e,a){const r=e.length;let i=0;for(;i<r;){const r=e.charCodeAt(i);a[i++]=(255&r)<<8|r>>>8;}},f="xportmportlassforetaourceeferromsyncunctionssertvoyiedelecontininstantybreareturdebuggeawaithrwhileifcatcfinallels";let t,c$1,n;function parse(k,l="@"){t=k,c$1=l;const u=2*t.length+(2<<18);if(u>i||!e){for(;u>i;)i*=2;a=new ArrayBuffer(i),s(f,new Uint16Array(a,16,114)),e=function(e,a,r){"use asm";var i=new e.Int8Array(r),s=new e.Int16Array(r),f=new e.Int32Array(r),t=new e.Uint8Array(r),c=new e.Uint16Array(r),n=1040;function b(){var e=0,a=0,r=0,t=0,c=0,b=0,u=0;u=n;n=n+10240|0;i[812]=1;i[811]=0;s[403]=0;s[404]=0;f[71]=f[2];i[813]=0;f[70]=0;i[810]=0;f[72]=u+2048;f[73]=u;i[814]=0;e=(f[3]|0)+-2|0;f[74]=e;a=e+(f[68]<<1)|0;f[75]=a;e:while(1){r=e+2|0;f[74]=r;if(e>>>0>=a>>>0){t=18;break}a:do{switch(s[r>>1]|0){case 9:case 10:case 11:case 12:case 13:case 32:break;case 101:{if((((s[404]|0)==0?H(r)|0:0)?(m(e+4|0,16,10)|0)==0:0)?(k(),(i[812]|0)==0):0){t=9;break e}else t=17;break}case 105:{if(H(r)|0?(m(e+4|0,26,10)|0)==0:0){l();t=17;}else t=17;break}case 59:{t=17;break}case 47:switch(s[e+4>>1]|0){case 47:{P();break a}case 42:{y(1);break a}default:{t=16;break e}}default:{t=16;break e}}}while(0);if((t|0)==17){t=0;f[71]=f[74];}e=f[74]|0;a=f[75]|0;}if((t|0)==9){e=f[74]|0;f[71]=e;t=19;}else if((t|0)==16){i[812]=0;f[74]=e;t=19;}else if((t|0)==18)if(!(i[810]|0)){e=r;t=19;}else e=0;do{if((t|0)==19){e:while(1){a=e+2|0;f[74]=a;if(e>>>0>=(f[75]|0)>>>0){t=92;break}a:do{switch(s[a>>1]|0){case 9:case 10:case 11:case 12:case 13:case 32:break;case 101:{if(((s[404]|0)==0?H(a)|0:0)?(m(e+4|0,16,10)|0)==0:0){k();t=91;}else t=91;break}case 105:{if(H(a)|0?(m(e+4|0,26,10)|0)==0:0){l();t=91;}else t=91;break}case 99:{if((H(a)|0?(m(e+4|0,36,8)|0)==0:0)?V(s[e+12>>1]|0)|0:0){i[814]=1;t=91;}else t=91;break}case 40:{r=f[72]|0;e=s[404]|0;t=e&65535;f[r+(t<<3)>>2]=1;a=f[71]|0;s[404]=e+1<<16>>16;f[r+(t<<3)+4>>2]=a;t=91;break}case 41:{a=s[404]|0;if(!(a<<16>>16)){t=36;break e}r=a+-1<<16>>16;s[404]=r;t=s[403]|0;a=t&65535;if(t<<16>>16!=0?(f[(f[72]|0)+((r&65535)<<3)>>2]|0)==5:0){a=f[(f[73]|0)+(a+-1<<2)>>2]|0;r=a+4|0;if(!(f[r>>2]|0))f[r>>2]=(f[71]|0)+2;f[a+12>>2]=e+4;s[403]=t+-1<<16>>16;t=91;}else t=91;break}case 123:{t=f[71]|0;r=f[65]|0;e=t;do{if((s[t>>1]|0)==41&(r|0)!=0?(f[r+4>>2]|0)==(t|0):0){a=f[66]|0;f[65]=a;if(!a){f[61]=0;break}else {f[a+32>>2]=0;break}}}while(0);r=f[72]|0;a=s[404]|0;t=a&65535;f[r+(t<<3)>>2]=(i[814]|0)==0?2:6;s[404]=a+1<<16>>16;f[r+(t<<3)+4>>2]=e;i[814]=0;t=91;break}case 125:{e=s[404]|0;if(!(e<<16>>16)){t=49;break e}r=f[72]|0;t=e+-1<<16>>16;s[404]=t;if((f[r+((t&65535)<<3)>>2]|0)==4){h();t=91;}else t=91;break}case 39:{v(39);t=91;break}case 34:{v(34);t=91;break}case 47:switch(s[e+4>>1]|0){case 47:{P();break a}case 42:{y(1);break a}default:{e=f[71]|0;a=s[e>>1]|0;r:do{if(!(U(a)|0))if(a<<16>>16==41){r=s[404]|0;if(!(D(f[(f[72]|0)+((r&65535)<<3)+4>>2]|0)|0))t=65;}else t=64;else switch(a<<16>>16){case 46:if(((s[e+-2>>1]|0)+-48&65535)<10){t=64;break r}else break r;case 43:if((s[e+-2>>1]|0)==43){t=64;break r}else break r;case 45:if((s[e+-2>>1]|0)==45){t=64;break r}else break r;default:break r}}while(0);if((t|0)==64){r=s[404]|0;t=65;}r:do{if((t|0)==65){t=0;if(r<<16>>16!=0?(c=f[72]|0,b=(r&65535)+-1|0,a<<16>>16==102?(f[c+(b<<3)>>2]|0)==1:0):0){if((s[e+-2>>1]|0)==111?$(f[c+(b<<3)+4>>2]|0,44,3)|0:0)break}else t=69;if((t|0)==69?(0,a<<16>>16==125):0){t=f[72]|0;r=r&65535;if(p(f[t+(r<<3)+4>>2]|0)|0)break;if((f[t+(r<<3)>>2]|0)==6)break}if(!(o(e)|0)){switch(a<<16>>16){case 0:break r;case 47:{if(i[813]|0)break r;break}default:{}}t=f[67]|0;if((t|0?e>>>0>=(f[t>>2]|0)>>>0:0)?e>>>0<=(f[t+4>>2]|0)>>>0:0){g();i[813]=0;t=91;break a}r=f[3]|0;do{if(e>>>0<=r>>>0)break;e=e+-2|0;f[71]=e;a=s[e>>1]|0;}while(!(E(a)|0));if(F(a)|0){do{if(e>>>0<=r>>>0)break;e=e+-2|0;f[71]=e;}while(F(s[e>>1]|0)|0);if(j(e)|0){g();i[813]=0;t=91;break a}}i[813]=1;t=91;break a}}}while(0);g();i[813]=0;t=91;break a}}case 96:{r=f[72]|0;a=s[404]|0;t=a&65535;f[r+(t<<3)+4>>2]=f[71];s[404]=a+1<<16>>16;f[r+(t<<3)>>2]=3;h();t=91;break}default:t=91;}}while(0);if((t|0)==91){t=0;f[71]=f[74];}e=f[74]|0;}if((t|0)==36){T();e=0;break}else if((t|0)==49){T();e=0;break}else if((t|0)==92){e=(i[810]|0)==0?(s[403]|s[404])<<16>>16==0:0;break}}}while(0);n=u;return e|0}function k(){var e=0,a=0,r=0,t=0,c=0,n=0,b=0,k=0,l=0,o=0,h=0,d=0,C=0,g=0;k=f[74]|0;l=f[67]|0;g=k+12|0;f[74]=g;r=w(1)|0;e=f[74]|0;if(!((e|0)==(g|0)?!(I(r)|0):0))C=3;e:do{if((C|0)==3){a:do{switch(r<<16>>16){case 123:{f[74]=e+2;e=w(1)|0;a=f[74]|0;while(1){if(W(e)|0){v(e);e=(f[74]|0)+2|0;f[74]=e;}else {q(e)|0;e=f[74]|0;}w(1)|0;e=A(a,e)|0;if(e<<16>>16==44){f[74]=(f[74]|0)+2;e=w(1)|0;}if(e<<16>>16==125){C=15;break}g=a;a=f[74]|0;if((a|0)==(g|0)){C=12;break}if(a>>>0>(f[75]|0)>>>0){C=14;break}}if((C|0)==12){T();break e}else if((C|0)==14){T();break e}else if((C|0)==15){i[811]=1;f[74]=(f[74]|0)+2;break a}break}case 42:{f[74]=e+2;w(1)|0;g=f[74]|0;A(g,g)|0;break}default:{i[812]=0;switch(r<<16>>16){case 100:{k=e+14|0;f[74]=k;switch((w(1)|0)<<16>>16){case 97:{a=f[74]|0;if((m(a+2|0,80,8)|0)==0?(c=a+10|0,F(s[c>>1]|0)|0):0){f[74]=c;w(0)|0;C=22;}break}case 102:{C=22;break}case 99:{a=f[74]|0;if(((m(a+2|0,36,8)|0)==0?(t=a+10|0,g=s[t>>1]|0,V(g)|0|g<<16>>16==123):0)?(f[74]=t,n=w(1)|0,n<<16>>16!=123):0){d=n;C=31;}break}default:{}}r:do{if((C|0)==22?(b=f[74]|0,(m(b+2|0,88,14)|0)==0):0){r=b+16|0;a=s[r>>1]|0;if(!(V(a)|0))switch(a<<16>>16){case 40:case 42:break;default:break r}f[74]=r;a=w(1)|0;if(a<<16>>16==42){f[74]=(f[74]|0)+2;a=w(1)|0;}if(a<<16>>16!=40){d=a;C=31;}}}while(0);if((C|0)==31?(o=f[74]|0,q(d)|0,h=f[74]|0,h>>>0>o>>>0):0){O(e,k,o,h);f[74]=(f[74]|0)+-2;break e}O(e,k,0,0);f[74]=e+12;break e}case 97:{f[74]=e+10;w(0)|0;e=f[74]|0;C=35;break}case 102:{C=35;break}case 99:{if((m(e+2|0,36,8)|0)==0?(a=e+10|0,E(s[a>>1]|0)|0):0){f[74]=a;g=w(1)|0;C=f[74]|0;q(g)|0;g=f[74]|0;O(C,g,C,g);f[74]=(f[74]|0)+-2;break e}e=e+4|0;f[74]=e;break}case 108:case 118:break;default:break e}if((C|0)==35){f[74]=e+16;e=w(1)|0;if(e<<16>>16==42){f[74]=(f[74]|0)+2;e=w(1)|0;}C=f[74]|0;q(e)|0;g=f[74]|0;O(C,g,C,g);f[74]=(f[74]|0)+-2;break e}f[74]=e+6;i[812]=0;r=w(1)|0;e=f[74]|0;r=(q(r)|0|32)<<16>>16==123;t=f[74]|0;if(r){f[74]=t+2;g=w(1)|0;e=f[74]|0;q(g)|0;}r:while(1){a=f[74]|0;if((a|0)==(e|0))break;O(e,a,e,a);a=w(1)|0;if(r)switch(a<<16>>16){case 93:case 125:break e;default:{}}e=f[74]|0;if(a<<16>>16!=44){C=51;break}f[74]=e+2;a=w(1)|0;e=f[74]|0;switch(a<<16>>16){case 91:case 123:{C=51;break r}default:{}}q(a)|0;}if((C|0)==51)f[74]=e+-2;if(!r)break e;f[74]=t+-2;break e}}}while(0);g=(w(1)|0)<<16>>16==102;e=f[74]|0;if(g?(m(e+2|0,74,6)|0)==0:0){f[74]=e+8;u(k,w(1)|0,0);e=(l|0)==0?248:l+16|0;while(1){e=f[e>>2]|0;if(!e)break e;f[e+12>>2]=0;f[e+8>>2]=0;e=e+16|0;}}f[74]=e+-2;}}while(0);return}function l(){var e=0,a=0,r=0,t=0,c=0,n=0,b=0;b=f[74]|0;c=b+12|0;f[74]=c;e=w(1)|0;t=f[74]|0;e:do{if(e<<16>>16!=46){if(!(e<<16>>16==115&t>>>0>c>>>0)){if(!(e<<16>>16==100&t>>>0>(b+10|0)>>>0)){t=0;n=28;break}if(m(t+2|0,66,8)|0){a=t;e=100;t=0;n=59;break}e=t+10|0;if(!(V(s[e>>1]|0)|0)){a=t;e=100;t=0;n=59;break}f[74]=e;e=w(1)|0;if(e<<16>>16==42){e=42;t=2;n=61;break}f[74]=t;t=0;n=28;break}if((m(t+2|0,56,10)|0)==0?(r=t+12|0,V(s[r>>1]|0)|0):0){f[74]=r;e=w(1)|0;a=f[74]|0;if((a|0)!=(r|0)){if(e<<16>>16!=102){t=1;n=28;break}if(m(a+2|0,74,6)|0){e=102;t=1;n=59;break}if(!(E(s[a+8>>1]|0)|0)){e=102;t=1;n=59;break}}f[74]=t;t=0;n=28;}else {a=t;e=115;t=0;n=59;}}else {f[74]=t+2;switch((w(1)|0)<<16>>16){case 109:{e=f[74]|0;if(m(e+2|0,50,6)|0)break e;a=f[71]|0;if(!(G(a)|0)?(s[a>>1]|0)==46:0)break e;d(b,b,e+8|0,2);break e}case 115:{e=f[74]|0;if(m(e+2|0,56,10)|0)break e;a=f[71]|0;if(!(G(a)|0)?(s[a>>1]|0)==46:0)break e;f[74]=e+12;e=w(1)|0;t=1;n=28;break e}case 100:{e=f[74]|0;if(m(e+2|0,66,8)|0)break e;a=f[71]|0;if(!(G(a)|0)?(s[a>>1]|0)==46:0)break e;f[74]=e+10;e=w(1)|0;t=2;n=28;break e}default:break e}}}while(0);e:do{if((n|0)==28){if(e<<16>>16==40){r=f[72]|0;a=s[404]|0;c=a&65535;f[r+(c<<3)>>2]=5;e=f[74]|0;s[404]=a+1<<16>>16;f[r+(c<<3)+4>>2]=e;if((s[f[71]>>1]|0)==46)break;f[74]=e+2;a=w(1)|0;d(b,f[74]|0,0,e);if(!t)e=f[65]|0;else {e=f[65]|0;f[e+28>>2]=(t|0)==1?5:7;}c=f[73]|0;b=s[403]|0;s[403]=b+1<<16>>16;f[c+((b&65535)<<2)>>2]=e;switch(a<<16>>16){case 39:{v(39);break}case 34:{v(34);break}default:{f[74]=(f[74]|0)+-2;break e}}e=(f[74]|0)+2|0;f[74]=e;switch((w(1)|0)<<16>>16){case 44:{f[74]=(f[74]|0)+2;w(1)|0;c=f[65]|0;f[c+4>>2]=e;b=f[74]|0;f[c+16>>2]=b;i[c+24>>0]=1;f[74]=b+-2;break e}case 41:{s[404]=(s[404]|0)+-1<<16>>16;b=f[65]|0;f[b+4>>2]=e;f[b+12>>2]=(f[74]|0)+2;i[b+24>>0]=1;s[403]=(s[403]|0)+-1<<16>>16;break e}default:{f[74]=(f[74]|0)+-2;break e}}}if(!((t|0)==0&e<<16>>16==123)){switch(e<<16>>16){case 42:case 39:case 34:{n=61;break e}default:{}}a=f[74]|0;n=59;break}e=f[74]|0;if(s[404]|0){f[74]=e+-2;break}while(1){if(e>>>0>=(f[75]|0)>>>0)break;e=w(1)|0;if(!(W(e)|0)){if(e<<16>>16==125){n=49;break}}else v(e);e=(f[74]|0)+2|0;f[74]=e;}if((n|0)==49)f[74]=(f[74]|0)+2;c=(w(1)|0)<<16>>16==102;e=f[74]|0;if(c?m(e+2|0,74,6)|0:0){T();break}f[74]=e+8;e=w(1)|0;if(W(e)|0){u(b,e,0);break}else {T();break}}}while(0);if((n|0)==59)if((a|0)==(c|0))f[74]=b+10;else n=61;do{if((n|0)==61){if(!((e<<16>>16==42|(t|0)!=2)&(s[404]|0)==0)){f[74]=(f[74]|0)+-2;break}e=f[75]|0;a=f[74]|0;while(1){if(a>>>0>=e>>>0){n=68;break}r=s[a>>1]|0;if(W(r)|0){n=66;break}n=a+2|0;f[74]=n;a=n;}if((n|0)==66){u(b,r,t);break}else if((n|0)==68){T();break}}}while(0);return}function u(e,a,r){e=e|0;a=a|0;r=r|0;var i=0,t=0;i=(f[74]|0)+2|0;switch(a<<16>>16){case 39:{v(39);t=5;break}case 34:{v(34);t=5;break}default:T();}do{if((t|0)==5){d(e,i,f[74]|0,1);if((r|0)>0)f[(f[65]|0)+28>>2]=(r|0)==1?4:6;f[74]=(f[74]|0)+2;a=w(0)|0;r=a<<16>>16==97;if(r){i=f[74]|0;if(m(i+2|0,102,10)|0)t=13;}else {i=f[74]|0;if(!(((a<<16>>16==119?(s[i+2>>1]|0)==105:0)?(s[i+4>>1]|0)==116:0)?(s[i+6>>1]|0)==104:0))t=13;}if((t|0)==13){f[74]=i+-2;break}f[74]=i+((r?6:4)<<1);if((w(1)|0)<<16>>16!=123){f[74]=i;break}r=f[74]|0;a=r;e:while(1){f[74]=a+2;a=w(1)|0;switch(a<<16>>16){case 39:{v(39);f[74]=(f[74]|0)+2;a=w(1)|0;break}case 34:{v(34);f[74]=(f[74]|0)+2;a=w(1)|0;break}default:a=q(a)|0;}if(a<<16>>16!=58){t=22;break}f[74]=(f[74]|0)+2;switch((w(1)|0)<<16>>16){case 39:{v(39);break}case 34:{v(34);break}default:{t=26;break e}}f[74]=(f[74]|0)+2;switch((w(1)|0)<<16>>16){case 125:{t=31;break e}case 44:break;default:{t=30;break e}}f[74]=(f[74]|0)+2;if((w(1)|0)<<16>>16==125){t=31;break}a=f[74]|0;}if((t|0)==22){f[74]=i;break}else if((t|0)==26){f[74]=i;break}else if((t|0)==30){f[74]=i;break}else if((t|0)==31){t=f[65]|0;f[t+16>>2]=r;f[t+12>>2]=(f[74]|0)+2;break}}}while(0);return}function o(e){e=e|0;e:do{switch(s[e>>1]|0){case 100:switch(s[e+-2>>1]|0){case 105:{e=$(e+-4|0,112,2)|0;break e}case 108:{e=$(e+-4|0,116,3)|0;break e}default:{e=0;break e}}case 101:switch(s[e+-2>>1]|0){case 115:switch(s[e+-4>>1]|0){case 108:{e=B(e+-6|0,101)|0;break e}case 97:{e=B(e+-6|0,99)|0;break e}default:{e=0;break e}}case 116:{e=$(e+-4|0,122,4)|0;break e}case 117:{e=$(e+-4|0,130,6)|0;break e}default:{e=0;break e}}case 102:{if((s[e+-2>>1]|0)==111?(s[e+-4>>1]|0)==101:0)switch(s[e+-6>>1]|0){case 99:{e=$(e+-8|0,142,6)|0;break e}case 112:{e=$(e+-8|0,154,2)|0;break e}default:{e=0;break e}}else e=0;break}case 107:{e=$(e+-2|0,158,4)|0;break}case 110:{e=e+-2|0;if(B(e,105)|0)e=1;else e=$(e,166,5)|0;break}case 111:{e=B(e+-2|0,100)|0;break}case 114:{e=$(e+-2|0,176,7)|0;break}case 116:{e=$(e+-2|0,190,4)|0;break}case 119:switch(s[e+-2>>1]|0){case 101:{e=B(e+-4|0,110)|0;break e}case 111:{e=$(e+-4|0,198,3)|0;break e}default:{e=0;break e}}default:e=0;}}while(0);return e|0}function h(){var e=0,a=0,r=0,i=0;a=f[75]|0;r=f[74]|0;e:while(1){e=r+2|0;if(r>>>0>=a>>>0){a=10;break}switch(s[e>>1]|0){case 96:{a=7;break e}case 36:{if((s[r+4>>1]|0)==123){a=6;break e}break}case 92:{e=r+4|0;break}default:{}}r=e;}if((a|0)==6){e=r+4|0;f[74]=e;a=f[72]|0;i=s[404]|0;r=i&65535;f[a+(r<<3)>>2]=4;s[404]=i+1<<16>>16;f[a+(r<<3)+4>>2]=e;}else if((a|0)==7){f[74]=e;r=f[72]|0;i=(s[404]|0)+-1<<16>>16;s[404]=i;if((f[r+((i&65535)<<3)>>2]|0)!=3)T();}else if((a|0)==10){f[74]=e;T();}return}function w(e){e=e|0;var a=0,r=0,i=0;r=f[74]|0;e:do{a=s[r>>1]|0;a:do{if(a<<16>>16!=47)if(e)if(V(a)|0)break;else break e;else if(F(a)|0)break;else break e;else switch(s[r+2>>1]|0){case 47:{P();break a}case 42:{y(e);break a}default:{a=47;break e}}}while(0);i=f[74]|0;r=i+2|0;f[74]=r;}while(i>>>0<(f[75]|0)>>>0);return a|0}function d(e,a,r,s){e=e|0;a=a|0;r=r|0;s=s|0;var t=0,c=0;c=f[69]|0;f[69]=c+36;t=f[65]|0;f[((t|0)==0?244:t+32|0)>>2]=c;f[66]=t;f[65]=c;f[c+8>>2]=e;if(2==(s|0)){e=3;t=r;}else {t=1==(s|0);e=t?1:2;t=t?r+2|0:0;}f[c+12>>2]=t;f[c+28>>2]=e;f[c>>2]=a;f[c+4>>2]=r;f[c+16>>2]=0;f[c+20>>2]=s;a=1==(s|0);i[c+24>>0]=a&1;f[c+32>>2]=0;if(a|2==(s|0))i[811]=1;return}function v(e){e=e|0;var a=0,r=0,i=0,t=0;t=f[75]|0;a=f[74]|0;while(1){i=a+2|0;if(a>>>0>=t>>>0){a=9;break}r=s[i>>1]|0;if(r<<16>>16==e<<16>>16){a=10;break}if(r<<16>>16==92){r=a+4|0;if((s[r>>1]|0)==13){a=a+6|0;a=(s[a>>1]|0)==10?a:r;}else a=r;}else if(Z(r)|0){a=9;break}else a=i;}if((a|0)==9){f[74]=i;T();}else if((a|0)==10)f[74]=i;return}function A(e,a){e=e|0;a=a|0;var r=0,i=0,t=0,c=0;r=f[74]|0;i=s[r>>1]|0;c=(e|0)==(a|0);t=c?0:e;c=c?0:a;if(i<<16>>16==97){f[74]=r+4;r=w(1)|0;e=f[74]|0;if(W(r)|0){v(r);a=(f[74]|0)+2|0;f[74]=a;}else {q(r)|0;a=f[74]|0;}i=w(1)|0;r=f[74]|0;}if((r|0)!=(e|0))O(e,a,t,c);return i|0}function C(){var e=0,a=0,r=0;r=f[75]|0;a=f[74]|0;e:while(1){e=a+2|0;if(a>>>0>=r>>>0){a=6;break}switch(s[e>>1]|0){case 13:case 10:{a=6;break e}case 93:{a=7;break e}case 92:{e=a+4|0;break}default:{}}a=e;}if((a|0)==6){f[74]=e;T();e=0;}else if((a|0)==7){f[74]=e;e=93;}return e|0}function g(){var e=0,a=0,r=0;e:while(1){e=f[74]|0;a=e+2|0;f[74]=a;if(e>>>0>=(f[75]|0)>>>0){r=7;break}switch(s[a>>1]|0){case 13:case 10:{r=7;break e}case 47:break e;case 91:{C()|0;break}case 92:{f[74]=e+4;break}default:{}}}if((r|0)==7)T();return}function p(e){e=e|0;switch(s[e>>1]|0){case 62:{e=(s[e+-2>>1]|0)==61;break}case 41:case 59:{e=1;break}case 104:{e=$(e+-2|0,218,4)|0;break}case 121:{e=$(e+-2|0,226,6)|0;break}case 101:{e=$(e+-2|0,238,3)|0;break}default:e=0;}return e|0}function y(e){e=e|0;var a=0,r=0,i=0,t=0,c=0;t=(f[74]|0)+2|0;f[74]=t;r=f[75]|0;while(1){a=t+2|0;if(t>>>0>=r>>>0)break;i=s[a>>1]|0;if(!e?Z(i)|0:0)break;if(i<<16>>16==42?(s[t+4>>1]|0)==47:0){c=8;break}t=a;}if((c|0)==8){f[74]=a;a=t+4|0;}f[74]=a;return}function m(e,a,r){e=e|0;a=a|0;r=r|0;var s=0,f=0;e:do{if(!r)e=0;else {while(1){s=i[e>>0]|0;f=i[a>>0]|0;if(s<<24>>24!=f<<24>>24)break;r=r+-1|0;if(!r){e=0;break e}else {e=e+1|0;a=a+1|0;}}e=(s&255)-(f&255)|0;}}while(0);return e|0}function I(e){e=e|0;e:do{switch(e<<16>>16){case 38:case 37:case 33:{e=1;break}default:if((e&-8)<<16>>16==40|(e+-58&65535)<6)e=1;else {switch(e<<16>>16){case 91:case 93:case 94:{e=1;break e}default:{}}e=(e+-123&65535)<4;}}}while(0);return e|0}function U(e){e=e|0;e:do{switch(e<<16>>16){case 38:case 37:case 33:break;default:if(!((e+-58&65535)<6|(e+-40&65535)<7&e<<16>>16!=41)){switch(e<<16>>16){case 91:case 94:break e;default:{}}return e<<16>>16!=125&(e+-123&65535)<4|0}}}while(0);return 1}function x(e){e=e|0;var a=0;a=s[e>>1]|0;e:do{if((a+-9&65535)>=5){switch(a<<16>>16){case 160:case 32:{a=1;break e}default:{}}if(I(a)|0)return a<<16>>16!=46|(G(e)|0)|0;else a=0;}else a=1;}while(0);return a|0}function S(e){e=e|0;var a=0,r=0,i=0,t=0;r=n;n=n+16|0;i=r;f[i>>2]=0;f[68]=e;a=f[3]|0;t=a+(e<<1)|0;e=t+2|0;s[t>>1]=0;f[i>>2]=e;f[69]=e;f[61]=0;f[65]=0;f[63]=0;f[62]=0;f[67]=0;f[64]=0;n=r;return a|0}function O(e,a,r,s){e=e|0;a=a|0;r=r|0;s=s|0;var t=0,c=0;t=f[69]|0;f[69]=t+20;c=f[67]|0;f[((c|0)==0?248:c+16|0)>>2]=t;f[67]=t;f[t>>2]=e;f[t+4>>2]=a;f[t+8>>2]=r;f[t+12>>2]=s;f[t+16>>2]=0;i[811]=1;return}function $(e,a,r){e=e|0;a=a|0;r=r|0;var i=0,s=0;i=e+(0-r<<1)|0;s=i+2|0;e=f[3]|0;if(s>>>0>=e>>>0?(m(s,a,r<<1)|0)==0:0)if((s|0)==(e|0))e=1;else e=x(i)|0;else e=0;return e|0}function j(e){e=e|0;switch(s[e>>1]|0){case 107:{e=$(e+-2|0,158,4)|0;break}case 101:{if((s[e+-2>>1]|0)==117)e=$(e+-4|0,130,6)|0;else e=0;break}default:e=0;}return e|0}function B(e,a){e=e|0;a=a|0;var r=0;r=f[3]|0;if(r>>>0<=e>>>0?(s[e>>1]|0)==a<<16>>16:0)if((r|0)==(e|0))r=1;else r=E(s[e+-2>>1]|0)|0;else r=0;return r|0}function E(e){e=e|0;e:do{if((e+-9&65535)<5)e=1;else {switch(e<<16>>16){case 32:case 160:{e=1;break e}default:{}}e=e<<16>>16!=46&(I(e)|0);}}while(0);return e|0}function P(){var e=0,a=0,r=0;e=f[75]|0;r=f[74]|0;e:while(1){a=r+2|0;if(r>>>0>=e>>>0)break;switch(s[a>>1]|0){case 13:case 10:break e;default:r=a;}}f[74]=a;return}function q(e){e=e|0;while(1){if(V(e)|0)break;if(I(e)|0)break;e=(f[74]|0)+2|0;f[74]=e;e=s[e>>1]|0;if(!(e<<16>>16)){e=0;break}}return e|0}function z(){var e=0;e=f[(f[63]|0)+20>>2]|0;switch(e|0){case 1:{e=-1;break}case 2:{e=-2;break}default:e=e-(f[3]|0)>>1;}return e|0}function D(e){e=e|0;if(!($(e,204,5)|0)?!($(e,44,3)|0):0)e=$(e,214,2)|0;else e=1;return e|0}function F(e){e=e|0;switch(e<<16>>16){case 160:case 32:case 12:case 11:case 9:{e=1;break}default:e=0;}return e|0}function G(e){e=e|0;if((s[e>>1]|0)==46?(s[e+-2>>1]|0)==46:0)e=(s[e+-4>>1]|0)==46;else e=0;return e|0}function H(e){e=e|0;if((f[3]|0)==(e|0))e=1;else e=x(e+-2|0)|0;return e|0}function J(){var e=0;e=f[(f[64]|0)+12>>2]|0;if(!e)e=-1;else e=e-(f[3]|0)>>1;return e|0}function K(){var e=0;e=f[(f[63]|0)+12>>2]|0;if(!e)e=-1;else e=e-(f[3]|0)>>1;return e|0}function L(){var e=0;e=f[(f[64]|0)+8>>2]|0;if(!e)e=-1;else e=e-(f[3]|0)>>1;return e|0}function M(){var e=0;e=f[(f[63]|0)+16>>2]|0;if(!e)e=-1;else e=e-(f[3]|0)>>1;return e|0}function N(){var e=0;e=f[(f[63]|0)+4>>2]|0;if(!e)e=-1;else e=e-(f[3]|0)>>1;return e|0}function Q(){var e=0;e=f[63]|0;e=f[((e|0)==0?244:e+32|0)>>2]|0;f[63]=e;return (e|0)!=0|0}function R(){var e=0;e=f[64]|0;e=f[((e|0)==0?248:e+16|0)>>2]|0;f[64]=e;return (e|0)!=0|0}function T(){i[810]=1;f[70]=(f[74]|0)-(f[3]|0)>>1;f[74]=(f[75]|0)+2;return}function V(e){e=e|0;return (e|128)<<16>>16==160|(e+-9&65535)<5|0}function W(e){e=e|0;return e<<16>>16==39|e<<16>>16==34|0}function X(){return (f[(f[63]|0)+8>>2]|0)-(f[3]|0)>>1|0}function Y(){return (f[(f[64]|0)+4>>2]|0)-(f[3]|0)>>1|0}function Z(e){e=e|0;return e<<16>>16==13|e<<16>>16==10|0}function _(){return (f[f[63]>>2]|0)-(f[3]|0)>>1|0}function ee(){return (f[f[64]>>2]|0)-(f[3]|0)>>1|0}function ae(){return t[(f[63]|0)+24>>0]|0|0}function re(e){e=e|0;f[3]=e;return}function ie(){return f[(f[63]|0)+28>>2]|0}function se(){return (i[811]|0)!=0|0}function fe(){return (i[812]|0)!=0|0}function te(){return f[70]|0}function ce(e){e=e|0;n=e+992+15&-16;return 992}return {su:ce,ai:M,e:te,ee:Y,ele:J,els:L,es:ee,f:fe,id:z,ie:N,ip:ae,is:_,it:ie,ms:se,p:b,re:R,ri:Q,sa:S,se:K,ses:re,ss:X}}("undefined"!=typeof self?self:commonjsGlobal,{},a),r=e.su(i-(2<<17));}const h=t.length+1;e.ses(r),e.sa(h-1),s(t,new Uint16Array(a,r,h)),e.p()||(n=e.e(),o());const w=[],d=[];for(;e.ri();){const a=e.is(),r=e.ie(),i=e.ai(),s=e.id(),f=e.ss(),c=e.se(),n=e.it();let k;e.ip()&&(k=b(-1===s?a:a+1,t.charCodeAt(-1===s?a-1:a))),w.push({t:n,n:k,s:a,e:r,ss:f,se:c,d:s,a:i});}for(;e.re();){const a=e.es(),r=e.ee(),i=e.els(),s=e.ele(),f=t.charCodeAt(a),c=i>=0?t.charCodeAt(i):-1;d.push({s:a,e:r,ls:i,le:s,n:34===f||39===f?b(a+1,f):t.slice(a,r),ln:i<0?void 0:34===c||39===c?b(i+1,c):t.slice(i,s)});}return [w,d,!!e.f(),!!e.ms()]}function b(e,a){n=e;let r="",i=n;for(;;){n>=t.length&&o();const e=t.charCodeAt(n);if(e===a)break;92===e?(r+=t.slice(i,n),r+=k(),i=n):(8232===e||8233===e||u(e)&&o(),++n);}return r+=t.slice(i,n++),r}function k(){let e=t.charCodeAt(++n);switch(++n,e){case 110:return "\n";case 114:return "\r";case 120:return String.fromCharCode(l(2));case 117:return function(){const e=t.charCodeAt(n);let a;123===e?(++n,a=l(t.indexOf("}",n)-n),++n,a>1114111&&o()):a=l(4);return a<=65535?String.fromCharCode(a):(a-=65536,String.fromCharCode(55296+(a>>10),56320+(1023&a)))}();case 116:return "\t";case 98:return "\b";case 118:return "\v";case 102:return "\f";case 13:10===t.charCodeAt(n)&&++n;case 10:return "";case 56:case 57:o();default:if(e>=48&&e<=55){let a=t.substr(n-1,3).match(/^[0-7]+/)[0],r=parseInt(a,8);return r>255&&(a=a.slice(0,-1),r=parseInt(a,8)),n+=a.length-1,e=t.charCodeAt(n),"0"===a&&56!==e&&57!==e||o(),String.fromCharCode(r)}return u(e)?"":String.fromCharCode(e)}}function l(e){const a=n;let r=0,i=0;for(let a=0;a<e;++a,++n){let e,s=t.charCodeAt(n);if(95!==s){if(s>=97)e=s-97+10;else if(s>=65)e=s-65+10;else {if(!(s>=48&&s<=57))break;e=s-48;}if(e>=16)break;i=s,r=16*r+e;}else 95!==i&&0!==a||o(),i=s;}return 95!==i&&n-a===e||o(),r}function u(e){return 13===e||10===e}function o(){throw Object.assign(Error(`Parse error ${c$1}:${t.slice(0,n).split("\n").length}:${n-t.lastIndexOf("\n",n-1)}`),{idx:n})}
+
+  const _resolve = (id, parentUrl = baseUrl) => {
+    const urlResolved = resolveIfNotPlainOrUrl(id, parentUrl) || asURL(id);
+    const firstResolved = firstImportMap && resolveImportMap(firstImportMap, urlResolved || id, parentUrl);
+    const composedResolved =
+      composedImportMap === firstImportMap ? firstResolved : (
+        resolveImportMap(composedImportMap, urlResolved || id, parentUrl)
+      );
+    const resolved = composedResolved || firstResolved || throwUnresolved(id, parentUrl);
+    // needsShim, shouldShim per load record to set on parent
+    let n = false,
+      N = false;
+    if (!supportsImportMaps) {
+      // bare specifier -> needs shim
+      if (!urlResolved) n = true;
+      // url mapping -> should shim
+      else if (urlResolved !== resolved) N = true;
+    } else if (!supportsMultipleImportMaps) {
+      // bare specifier and not resolved by first import map -> needs shim
+      if (!urlResolved && !firstResolved) n = true;
+      // resolution doesn't match first import map -> should shim
+      if (firstResolved && resolved !== firstResolved) N = true;
     }
-  }
+    return { r: resolved, n, N };
+  };
 
-  function targetWarning (match, target, msg) {
-    console.warn("Package target " + msg + ", resolving target '" + target + "' for " + match);
-  }
+  const resolve = (id, parentUrl) => {
+    if (!resolveHook) return _resolve(id, parentUrl);
+    const result = resolveHook(id, parentUrl, defaultResolve);
 
-  function resolveImportMap (importMap, resolvedOrPlain, parentUrl) {
-    let scopeUrl = parentUrl && getMatch(parentUrl, importMap.scopes);
-    while (scopeUrl) {
-      const packageResolution = applyPackages(resolvedOrPlain, importMap.scopes[scopeUrl]);
-      if (packageResolution)
-        return packageResolution;
-      scopeUrl = getMatch(scopeUrl.slice(0, scopeUrl.lastIndexOf('/')), importMap.scopes);
+    return result ? { r: result, n: true, N: true } : _resolve(id, parentUrl);
+  };
+
+  // import()
+  async function importShim(id, opts, parentUrl) {
+    if (typeof opts === 'string') {
+      parentUrl = opts;
+      opts = undefined;
     }
-    return applyPackages(resolvedOrPlain, importMap.imports) || resolvedOrPlain.indexOf(':') !== -1 && resolvedOrPlain;
+    await initPromise; // needed for shim check
+    if (shimMode || !baselineSupport) {
+      if (hasDocument) processScriptsAndPreloads();
+      legacyAcceptingImportMaps = false;
+    }
+    let sourceType = undefined;
+    if (typeof opts === 'object') {
+      if (opts.lang === 'ts') sourceType = 'ts';
+      if (typeof opts.with === 'object' && typeof opts.with.type === 'string') {
+        sourceType = opts.with.type;
+      }
+    }
+    return topLevelLoad(id, parentUrl || baseUrl, defaultFetchOpts, undefined, undefined, undefined, sourceType);
   }
 
-  /* es-module-lexer 0.4.0 */
-  const A=1===new Uint8Array(new Uint16Array([1]).buffer)[0];function parse(E,g="@"){if(!B)return init.then(()=>parse(E));const I=E.length+1,D=(B.__heap_base.value||B.__heap_base)+4*I-B.memory.buffer.byteLength;D>0&&B.memory.grow(Math.ceil(D/65536));const w=B.sa(I-1);if((A?C:Q)(E,new Uint16Array(B.memory.buffer,w,I)),!B.parse())throw Object.assign(new Error(`Parse error ${g}:${E.slice(0,B.e()).split("\n").length}:${B.e()-E.lastIndexOf("\n",B.e()-1)}`),{idx:B.e()});const L=[],k=[];for(;B.ri();){const A=B.is(),Q=B.ie();let C;B.ip()&&(C=N(E.slice(A-1,Q+1))),L.push({n:C,s:A,e:Q,ss:B.ss(),se:B.se(),d:B.id()});}for(;B.re();)k.push(E.slice(B.es(),B.ee()));function N(A){try{return (0,eval)(A)}catch{}}return [L,k,!!B.f()]}function Q(A,Q){const C=A.length;let B=0;for(;B<C;){const C=A.charCodeAt(B);Q[B++]=(255&C)<<8|C>>>8;}}function C(A,Q){const C=A.length;let B=0;for(;B<C;)Q[B]=A.charCodeAt(B++);}let B;const init=WebAssembly.compile((E="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","undefined"!=typeof window&&"function"==typeof atob?Uint8Array.from(atob(E),A=>A.charCodeAt(0)):Buffer.from(E,"base64"))).then(WebAssembly.instantiate).then(({exports:A})=>{B=A;});var E;
+  // import.source()
+  // (opts not currently supported as no use cases yet)
+  if (shimMode || wasmSourcePhaseEnabled)
+    importShim.source = async (id, opts, parentUrl) => {
+      if (typeof opts === 'string') {
+        parentUrl = opts;
+        opts = undefined;
+      }
+      await initPromise; // needed for shim check
+      if (shimMode || !baselineSupport) {
+        if (hasDocument) processScriptsAndPreloads();
+        legacyAcceptingImportMaps = false;
+      }
+      await importMapPromise;
+      const url = resolve(id, parentUrl || baseUrl).r;
+      const load = getOrCreateLoad(url, defaultFetchOpts, undefined, undefined);
+      await load.f;
+      return importShim._s[load.r];
+    };
 
-  let id = 0;
-  const registry = {};
+  // import.defer() is just a proxy for import(), since we can't actually defer
+  if (shimMode || deferPhaseEnabled) importShim.defer = importShim;
 
-  async function loadAll (load, seen) {
-    if (load.b || seen[load.u])
-      return;
+  if (hotReload) {
+    initHotReload(topLevelLoad, importShim);
+    importShim.hotReload = hotReload$1;
+  }
+
+  const defaultResolve = (id, parentUrl) => {
+    return (
+      resolveImportMap(composedImportMap, resolveIfNotPlainOrUrl(id, parentUrl) || id, parentUrl) ||
+      throwUnresolved(id, parentUrl)
+    );
+  };
+
+  const throwUnresolved = (id, parentUrl) => {
+    throw Error(`Unable to resolve specifier '${id}'${fromParent(parentUrl)}`);
+  };
+
+  const metaResolve = function (id, parentUrl = this.url) {
+    return resolve(id, `${parentUrl}`).r;
+  };
+
+  importShim.resolve = (id, parentUrl) => resolve(id, parentUrl).r;
+  importShim.getImportMap = () => JSON.parse(JSON.stringify(composedImportMap));
+  importShim.addImportMap = importMapIn => {
+    if (!shimMode) throw new Error('Unsupported in polyfill mode.');
+    composedImportMap = resolveAndComposeImportMap(importMapIn, baseUrl, composedImportMap);
+  };
+  importShim.version = version;
+
+  const registry = (importShim._r = {});
+  // Wasm caches
+  const sourceCache = (importShim._s = {});
+  /* const instanceCache = */ importShim._i = new WeakMap();
+
+  // Ensure this version is the only version
+  defineValue(self_, 'importShim', Object.freeze(importShim));
+  const shimModeOptions = { ...esmsInitOptions, shimMode: true };
+  if (optionsScript) optionsScript.innerHTML = JSON.stringify(shimModeOptions);
+  self_.esmsInitOptions = shimModeOptions;
+
+  const loadAll = async (load, seen) => {
     seen[load.u] = 1;
     await load.L;
-    return Promise.all(load.d.map(dep => loadAll(dep, seen)));
-  }
+    await Promise.all(
+      load.d.map(({ l: dep, s: sourcePhase }) => {
+        if (dep.b || seen[dep.u]) return;
+        if (sourcePhase) return dep.f;
+        return loadAll(dep, seen);
+      })
+    );
+  };
 
-  let waitingForImportMapsInterval;
-  let firstTopLevelProcess = true;
-  async function topLevelLoad (url, source, polyfill) {
-    // no need to even fetch if we have feature support
-    await featureDetectionPromise;
-    if (waitingForImportMapsInterval > 0) {
-      clearTimeout(waitingForImportMapsInterval);
-      waitingForImportMapsInterval = 0;
+  let importMapSrc = false;
+  let multipleImportMaps = false;
+  let firstImportMap = null;
+  // To support polyfilling multiple import maps, we separately track the composed import map from the first import map
+  let composedImportMap = { imports: {}, scopes: {}, integrity: {} };
+  let baselineSupport;
+
+  const initPromise = featureDetectionPromise.then(() => {
+    baselineSupport =
+      supportsImportMaps &&
+      (!jsonModulesEnabled || supportsJsonType) &&
+      (!cssModulesEnabled || supportsCssType) &&
+      (!wasmInstancePhaseEnabled || supportsWasmInstancePhase) &&
+      (!wasmSourcePhaseEnabled || supportsWasmSourcePhase) &&
+      !deferPhaseEnabled &&
+      (!multipleImportMaps || supportsMultipleImportMaps) &&
+      !importMapSrc &&
+      !hasCustomizationHooks;
+    if (!shimMode && typeof WebAssembly !== 'undefined') {
+      if (wasmSourcePhaseEnabled && !Object.getPrototypeOf(WebAssembly.Module).name) {
+        const s = Symbol();
+        const brand = m => defineValue(m, s, 'WebAssembly.Module');
+        class AbstractModuleSource {
+          get [Symbol.toStringTag]() {
+            if (this[s]) return this[s];
+            throw new TypeError('Not an AbstractModuleSource');
+          }
+        }
+        const { Module: wasmModule, compile: wasmCompile, compileStreaming: wasmCompileStreaming } = WebAssembly;
+        WebAssembly.Module = Object.setPrototypeOf(
+          Object.assign(function Module(...args) {
+            return brand(new wasmModule(...args));
+          }, wasmModule),
+          AbstractModuleSource
+        );
+        WebAssembly.Module.prototype = Object.setPrototypeOf(wasmModule.prototype, AbstractModuleSource.prototype);
+        WebAssembly.compile = function compile(...args) {
+          return wasmCompile(...args).then(brand);
+        };
+        WebAssembly.compileStreaming = function compileStreaming(...args) {
+          return wasmCompileStreaming(...args).then(brand);
+        };
+      }
     }
-    if (firstTopLevelProcess) {
-      firstTopLevelProcess = false;
-      processScripts();
+    if (hasDocument) {
+      if (!supportsImportMaps) {
+        const supports = HTMLScriptElement.supports || (type => type === 'classic' || type === 'module');
+        HTMLScriptElement.supports = type => type === 'importmap' || supports(type);
+      }
+      if (shimMode || !baselineSupport) {
+        attachMutationObserver();
+        if (document.readyState === 'complete') {
+          readyStateCompleteCheck();
+        } else {
+          document.addEventListener('readystatechange', readyListener);
+        }
+      }
+      processScriptsAndPreloads();
     }
+    return undefined;
+  });
+
+  const attachMutationObserver = () => {
+    const observer = new MutationObserver(mutations => {
+      for (const mutation of mutations) {
+        if (mutation.type !== 'childList') continue;
+        for (const node of mutation.addedNodes) {
+          if (node.tagName === 'SCRIPT') {
+            if (node.type === (shimMode ? 'module-shim' : 'module') && !node.ep) processScript(node, true);
+            if (node.type === (shimMode ? 'importmap-shim' : 'importmap') && !node.ep) processImportMap(node, true);
+          } else if (
+            node.tagName === 'LINK' &&
+            node.rel === (shimMode ? 'modulepreload-shim' : 'modulepreload') &&
+            !node.ep
+          ) {
+            processPreload(node);
+          }
+        }
+      }
+    });
+    observer.observe(document, { childList: true });
+    observer.observe(document.head, { childList: true });
+    processScriptsAndPreloads();
+  };
+
+  let importMapPromise = initPromise;
+  let firstPolyfillLoad = true;
+  let legacyAcceptingImportMaps = true;
+
+  async function topLevelLoad(
+    url,
+    parentUrl,
+    fetchOpts,
+    source,
+    nativelyLoaded,
+    lastStaticLoadPromise,
+    sourceType
+  ) {
+    await initPromise;
     await importMapPromise;
-    // early analysis opt-out
-    if (polyfill && supportsDynamicImport && supportsImportMeta && supportsImportMaps && !importMapSrcOrLazy) {
-      // dont reexec inline for polyfills -> just return null
-      return source && polyfill ? null : dynamicImport(source ? createBlob(source) : url);
+    url = (await resolve(url, parentUrl)).r;
+
+    // we mock import('./x.css', { with: { type: 'css' }}) support via an inline static reexport
+    // because we can't syntactically pass through to dynamic import with a second argument
+    if (sourceType === 'css' || sourceType === 'json') {
+      // Direct reexport for hot reloading skipped due to Firefox bug https://bugzilla.mozilla.org/show_bug.cgi?id=1965620
+      source = `import m from'${url}'with{type:"${sourceType}"};export default m;`;
+      url += '?entry';
     }
-    await init;
-    const load = getOrCreateLoad(url, source);
+
+    if (importHook) await importHook(url, typeof fetchOpts !== 'string' ? fetchOpts : {}, parentUrl, source, sourceType);
+    // early analysis opt-out - no need to even fetch if we have feature support
+    if (!shimMode && baselineSupport && nativePassthrough && sourceType !== 'ts') {
+      // for polyfill case, only dynamic import needs a return value here, and dynamic import will never pass nativelyLoaded
+      if (nativelyLoaded) return null;
+      await lastStaticLoadPromise;
+      return dynamicImport(source ? createBlob(source) : url);
+    }
+    const load = getOrCreateLoad(url, fetchOpts, undefined, source);
+    linkLoad(load, fetchOpts);
     const seen = {};
     await loadAll(load, seen);
-    lastLoad = undefined;
     resolveDeps(load, seen);
-    // inline "module-shim" must still execute even if no shim
-    if (source && !polyfill && !load.n)
-      return dynamicImport(createBlob(source));
-    const module = await dynamicImport(load.b);
+    await lastStaticLoadPromise;
+    if (!shimMode && !load.n) {
+      if (nativelyLoaded) {
+        return;
+      }
+      if (source) {
+        return await dynamicImport(createBlob(source));
+      }
+    }
+    if (firstPolyfillLoad && !shimMode && load.n && nativelyLoaded) {
+      onpolyfill();
+      firstPolyfillLoad = false;
+    }
+    const module = await (shimMode || load.n || load.N || !nativePassthrough || (!nativelyLoaded && source) ?
+      dynamicImport(load.b, load.u)
+    : import(load.u));
     // if the top-level load is a shell, run its update function
-    if (load.s)
-      (await dynamicImport(load.s)).u$_(module);
+    if (load.s) (await dynamicImport(load.s, load.u)).u$_(module);
+    revokeObjectURLs(Object.keys(seen));
     return module;
   }
 
-  async function importShim (id, parentUrl = baseUrl) {
-    return topLevelLoad(resolve(id, parentUrl).r || throwUnresolved(id, parentUrl));
-  }
+  const revokeObjectURLs = registryKeys => {
+    let curIdx = 0;
+    const handler = self_.requestIdleCallback || self_.requestAnimationFrame || (fn => setTimeout(fn, 0));
+    handler(cleanup);
+    function cleanup() {
+      for (const key of registryKeys.slice(curIdx, (curIdx += 100))) {
+        const load = registry[key];
+        if (load && load.b && load.b !== load.u) URL.revokeObjectURL(load.b);
+      }
+      if (curIdx < registryKeys.length) handler(cleanup);
+    }
+  };
 
-  self.importShim = importShim;
+  const urlJsString = url => `'${url.replace(/'/g, "\\'")}'`;
 
-  const meta = {};
+  let resolvedSource, lastIndex;
+  const pushStringTo = (load, originalIndex, dynamicImportEndStack) => {
+    while (dynamicImportEndStack[dynamicImportEndStack.length - 1] < originalIndex) {
+      const dynamicImportEnd = dynamicImportEndStack.pop();
+      resolvedSource += `${load.S.slice(lastIndex, dynamicImportEnd)}, ${urlJsString(load.r)}`;
+      lastIndex = dynamicImportEnd;
+    }
+    resolvedSource += load.S.slice(lastIndex, originalIndex);
+    lastIndex = originalIndex;
+  };
 
-  const edge = navigator.userAgent.match(/Edge\/\d\d\.\d+$/);
+  const pushSourceURL = (load, commentPrefix, commentStart, dynamicImportEndStack) => {
+    const urlStart = commentStart + commentPrefix.length;
+    const commentEnd = load.S.indexOf('\n', urlStart);
+    const urlEnd = commentEnd !== -1 ? commentEnd : load.S.length;
+    let sourceUrl = load.S.slice(urlStart, urlEnd);
+    try {
+      sourceUrl = new URL(sourceUrl, load.r).href;
+    } catch {}
+    pushStringTo(load, urlStart, dynamicImportEndStack);
+    resolvedSource += sourceUrl;
+    lastIndex = urlEnd;
+  };
 
-  async function importMetaResolve (id, parentUrl = this.url) {
-    await importMapPromise;
-    return resolve(id, `${parentUrl}`).r || throwUnresolved(id, parentUrl);
-  }
-
-  self._esmsm = meta;
-
-  const esmsInitOptions = self.esmsInitOptions || {};
-  delete self.esmsInitOptions;
-  const shimMode = typeof esmsInitOptions.shimMode === 'boolean' ? esmsInitOptions.shimMode : !!esmsInitOptions.fetch || !!document.querySelector('script[type="module-shim"],script[type="importmap-shim"]');
-  const fetchHook = esmsInitOptions.fetch || (url => fetch(url));
-  const skip = esmsInitOptions.skip || /^https?:\/\/(cdn\.skypack\.dev|jspm\.dev)\//;
-  const onerror = esmsInitOptions.onerror || ((e) => { throw e; });
-
-  let lastLoad;
-  function resolveDeps (load, seen) {
-    if (load.b || !seen[load.u])
-      return;
+  const resolveDeps = (load, seen) => {
+    if (load.b || !seen[load.u]) return;
     seen[load.u] = 0;
 
-    for (const dep of load.d)
-      resolveDeps(dep, seen);
+    for (const { l: dep, s: sourcePhase } of load.d) {
+      if (!sourcePhase) resolveDeps(dep, seen);
+    }
 
-    if (!load.n && !shimMode) {
-      load.b = lastLoad = load.u;
+    if (!load.n) load.n = load.d.some(dep => dep.l.n);
+    if (!load.N) load.N = load.d.some(dep => dep.l.N);
+
+    // use native loader whenever possible (n = needs shim) via executable subgraph passthrough
+    // so long as the module doesn't use dynamic import or unsupported URL mappings (N = should shim)
+    if (nativePassthrough && !shimMode && !load.n && !load.N) {
+      load.b = load.u;
       load.S = undefined;
       return;
     }
 
-    const [imports] = load.a;
+    const [imports, exports] = load.a;
 
     // "execution"
-    const source = load.S;
+    let source = load.S,
+      depIndex = 0,
+      dynamicImportEndStack = [];
 
-    // edge doesnt execute sibling in order, so we fix this up by ensuring all previous executions are explicit dependencies
-    let resolvedSource = edge && lastLoad ? `import '${lastLoad}';` : '';  
+    // once all deps have loaded we can inline the dependency resolution blobs
+    // and define this blob
+    resolvedSource = '';
+    lastIndex = 0;
 
-    if (!imports.length) {
-      resolvedSource += source;
-    }
-    else {
-      // once all deps have loaded we can inline the dependency resolution blobs
-      // and define this blob
-      let lastIndex = 0, depIndex = 0;
-      for (const { s: start, e: end, d: dynamicImportIndex, n } of imports) {
-        // dependency source replacements
-        if (dynamicImportIndex === -1) {
-          const depLoad = load.d[depIndex++];
-          let blobUrl = depLoad.b.replace(/'/g, '\\\'');
-          if (!blobUrl) {
-            // circular shell creation
-            if (!(blobUrl = depLoad.s)) {
-              blobUrl = depLoad.s = createBlob(`export function u$_(m){${
-                depLoad.a[1].map(
-                  name => name === 'default' ? `$_default=m.default` : `${name}=m.${name}`
-                ).join(',')
-              }}${
-                depLoad.a[1].map(name =>
-                  name === 'default' ? `let $_default;export{$_default as default}` : `export let ${name}`
-                ).join(';')
-              }\n//# sourceURL=${depLoad.r}?cycle`);
-            }
-          }
-          // circular shell execution
-          else if (depLoad.s) {
-            resolvedSource += source.slice(lastIndex, start - 1) + '/*' + source.slice(start - 1, end + 1) + '*/' + source.slice(start - 1, start) + blobUrl + source[end] + `;import*as m$_${depIndex} from'${depLoad.b}';import{u$_ as u$_${depIndex}}from'${depLoad.s}';u$_${depIndex}(m$_${depIndex})`;
-            lastIndex = end + 1;
-            depLoad.s = undefined;
-            continue;
-          }
-          resolvedSource += source.slice(lastIndex, start - 1) + '/*' + source.slice(start - 1, end + 1) + '*/' + source.slice(start - 1, start) + blobUrl;
-          lastIndex = end;
-        }
-        // import.meta
-        else if (dynamicImportIndex === -2) {
-          meta[load.r] = { url: load.r, resolve: importMetaResolve };
-          resolvedSource += source.slice(lastIndex, start) + 'self._esmsm[' + JSON.stringify(load.r) + ']';
-          lastIndex = end;
-        }
-        // dynamic import
-        else {
-          resolvedSource += source.slice(lastIndex, dynamicImportIndex + 6) + 'Shim(' + source.slice(start, end) + ', ' + JSON.stringify(load.r);
-          lastIndex = end;
-        }
+    for (const { s: start, e: end, ss: statementStart, se: statementEnd, d: dynamicImportIndex, t, a } of imports) {
+      // source phase
+      if (t === 4) {
+        let { l: depLoad } = load.d[depIndex++];
+        pushStringTo(load, statementStart, dynamicImportEndStack);
+        resolvedSource += `${source.slice(statementStart, start - 1).replace('source', '')}/*${source.slice(start - 1, end + 1)}*/'${createBlob(`export default importShim._s[${urlJsString(depLoad.r)}]`)}'`;
+        lastIndex = end + 1;
       }
+      // dependency source replacements
+      else if (dynamicImportIndex === -1) {
+        let keepAssertion = false;
+        if (a > 0 && !shimMode) {
+          const assertion = source.slice(a, statementEnd - 1);
+          // strip assertions only when unsupported in polyfill mode
+          keepAssertion =
+            nativePassthrough &&
+            ((supportsJsonType && assertion.includes('json')) || (supportsCssType && assertion.includes('css')));
+        }
 
-      resolvedSource += source.slice(lastIndex);
+        // defer phase stripping
+        if (t === 6) {
+          pushStringTo(load, statementStart, dynamicImportEndStack);
+          resolvedSource += source.slice(statementStart, start - 1).replace('defer', '');
+          lastIndex = start;
+        }
+        let { l: depLoad } = load.d[depIndex++],
+          blobUrl = depLoad.b,
+          cycleShell = !blobUrl;
+        if (cycleShell) {
+          // circular shell creation
+          if (!(blobUrl = depLoad.s)) {
+            blobUrl = depLoad.s = createBlob(
+              `export function u$_(m){${depLoad.a[1]
+              .map(({ s, e }, i) => {
+                const q = depLoad.S[s] === '"' || depLoad.S[s] === "'";
+                return `e$_${i}=m${q ? `[` : '.'}${depLoad.S.slice(s, e)}${q ? `]` : ''}`;
+              })
+              .join(',')}}${
+              depLoad.a[1].length ? `let ${depLoad.a[1].map((_, i) => `e$_${i}`).join(',')};` : ''
+            }export {${depLoad.a[1]
+              .map(({ s, e }, i) => `e$_${i} as ${depLoad.S.slice(s, e)}`)
+              .join(',')}}\n//# sourceURL=${depLoad.r}?cycle`
+            );
+          }
+        }
+
+        pushStringTo(load, start - 1, dynamicImportEndStack);
+        resolvedSource += `/*${source.slice(start - 1, end + 1)}*/'${blobUrl}'`;
+
+        // circular shell execution
+        if (!cycleShell && depLoad.s) {
+          resolvedSource += `;import*as m$_${depIndex} from'${depLoad.b}';import{u$_ as u$_${depIndex}}from'${depLoad.s}';u$_${depIndex}(m$_${depIndex})`;
+          depLoad.s = undefined;
+        }
+        lastIndex = keepAssertion ? end + 1 : statementEnd;
+      }
+      // import.meta
+      else if (dynamicImportIndex === -2) {
+        load.m = { url: load.r, resolve: metaResolve };
+        if (metaHook) metaHook(load.m, load.u);
+        pushStringTo(load, start, dynamicImportEndStack);
+        resolvedSource += `importShim._r[${urlJsString(load.u)}].m`;
+        lastIndex = statementEnd;
+      }
+      // dynamic import
+      else {
+        pushStringTo(load, statementStart + 6, dynamicImportEndStack);
+        resolvedSource += `Shim${t === 5 ? '.source' : ''}(`;
+        dynamicImportEndStack.push(statementEnd - 1);
+        lastIndex = start;
+      }
     }
 
-    if (resolvedSource.indexOf('//# sourceURL=') === -1)
-      resolvedSource += '\n//# sourceURL=' + load.r;
+    // support progressive cycle binding updates (try statement avoids tdz errors)
+    if (load.s && (imports.length === 0 || imports[imports.length - 1].d === -1))
+      resolvedSource += `\n;import{u$_}from'${load.s}';try{u$_({${exports
+      .filter(e => e.ln)
+      .map(({ s, e, ln }) => `${source.slice(s, e)}:${ln}`)
+      .join(',')}})}catch(_){};\n`;
 
-    load.b = lastLoad = createBlob(resolvedSource);
-    load.S = undefined;
+    let sourceURLCommentStart = source.lastIndexOf(sourceURLCommentPrefix);
+    let sourceMapURLCommentStart = source.lastIndexOf(sourceMapURLCommentPrefix);
+
+    // ignore sourceMap comments before already spliced code
+    if (sourceURLCommentStart < lastIndex) sourceURLCommentStart = -1;
+    if (sourceMapURLCommentStart < lastIndex) sourceMapURLCommentStart = -1;
+
+    // sourceURL first / only
+    if (
+      sourceURLCommentStart !== -1 &&
+      (sourceMapURLCommentStart === -1 || sourceMapURLCommentStart > sourceURLCommentStart)
+    ) {
+      pushSourceURL(load, sourceURLCommentPrefix, sourceURLCommentStart, dynamicImportEndStack);
+    }
+    // sourceMappingURL
+    if (sourceMapURLCommentStart !== -1) {
+      pushSourceURL(load, sourceMapURLCommentPrefix, sourceMapURLCommentStart, dynamicImportEndStack);
+      // sourceURL last
+      if (sourceURLCommentStart !== -1 && sourceURLCommentStart > sourceMapURLCommentStart)
+        pushSourceURL(load, sourceURLCommentPrefix, sourceURLCommentStart, dynamicImportEndStack);
+    }
+
+    pushStringTo(load, source.length, dynamicImportEndStack);
+
+    if (sourceURLCommentStart === -1) resolvedSource += sourceURLCommentPrefix + load.r;
+
+    load.b = createBlob(resolvedSource);
+    load.S = resolvedSource = undefined;
+  };
+
+  const sourceURLCommentPrefix = '\n//# sourceURL=';
+  const sourceMapURLCommentPrefix = '\n//# sourceMappingURL=';
+  const cssUrlRegEx = /url\(\s*(?:(["'])((?:\\.|[^\n\\"'])+)\1|((?:\\.|[^\s,"'()\\])+))\s*\)/g;
+
+  // restrict in-flight fetches to a pool of 100
+  let p = [];
+  let c = 0;
+  const pushFetchPool = () => {
+    if (++c > 100) return new Promise(r => p.push(r));
+  };
+  const popFetchPool = () => {
+    c--;
+    if (p.length) p.shift()();
+  };
+
+  const doFetch = async (url, fetchOpts, parent) => {
+    if (enforceIntegrity && !fetchOpts.integrity) throw Error(`No integrity for ${url}${fromParent(parent)}.`);
+    let res,
+      poolQueue = pushFetchPool();
+    if (poolQueue) await poolQueue;
+    try {
+      res = await fetchHook(url, fetchOpts);
+    } catch (e) {
+      e.message = `Unable to fetch ${url}${fromParent(parent)} - see network log for details.\n` + e.message;
+      throw e;
+    } finally {
+      popFetchPool();
+    }
+
+    if (!res.ok) {
+      const error = new TypeError(`${res.status} ${res.statusText} ${res.url}${fromParent(parent)}`);
+      error.response = res;
+      throw error;
+    }
+    return res;
+  };
+
+  let esmsTsTransform;
+  const initTs = async () => {
+    const m = await import(tsTransform);
+    if (!esmsTsTransform) esmsTsTransform = m.transform;
+  };
+
+  async function defaultSourceHook(url, fetchOpts, parent) {
+    let res = await doFetch(url, fetchOpts, parent),
+      contentType,
+      [, json, type, jsts] =
+        (contentType = res.headers.get('content-type') || '').match(
+          /^(?:[^/;]+\/(?:[^/+;]+\+)?(json)|(?:text|application)\/(?:x-)?((java|type)script|wasm|css))(?:;|$)/
+        ) || [];
+    if (!(type = json || (jsts ? jsts[0] + 's' : type || (/\.m?ts(\?|#|$)/.test(url) && 'ts')))) {
+      throw Error(
+        `Unsupported Content-Type "${contentType}" loading ${url}${fromParent(parent)}. Modules must be served with a valid MIME type like application/javascript.`
+      );
+    }
+    return {
+      url: res.url,
+      source: await (type > 'v' ? WebAssembly.compileStreaming(res) : res.text()),
+      type
+    };
   }
 
-  function getOrCreateLoad (url, source) {
-    let load = registry[url];
-    if (load)
-      return load;
+  const hotPrefix = 'var h=import.meta.hot,';
+  const fetchModule = async (reqUrl, fetchOpts, parent) => {
+    const mapIntegrity = composedImportMap.integrity[reqUrl];
+    fetchOpts = mapIntegrity && !fetchOpts.integrity ? { ...fetchOpts, integrity: mapIntegrity } : fetchOpts;
+    let {
+      url = reqUrl,
+      source,
+      type
+    } = (await (sourceHook || defaultSourceHook)(reqUrl, fetchOpts, parent, defaultSourceHook)) || {};
+    if (type === 'wasm') {
+      const exports = WebAssembly.Module.exports((sourceCache[url] = source));
+      const imports = WebAssembly.Module.imports(source);
+      const rStr = urlJsString(url);
+      source = `import*as $_ns from${rStr};`;
+      let i = 0,
+        obj = '';
+      for (const { module, kind } of imports) {
+        const specifier = urlJsString(module);
+        source += `import*as impt${i} from${specifier};\n`;
+        obj += `${specifier}:${kind === 'global' ? `importShim._i.get(impt${i})||impt${i++}` : `impt${i++}`},`;
+      }
+      source += `${hotPrefix}i=await WebAssembly.instantiate(importShim._s[${rStr}],{${obj}});importShim._i.set($_ns,i);`;
+      obj = '';
+      for (const { name, kind } of exports) {
+        source += `export let ${name}=i.exports['${name}'];`;
+        if (kind === 'global') source += `try{${name}=${name}.value}catch{${name}=undefined}`;
+        obj += `${name},`;
+      }
+      source += `if(h)h.accept(m=>({${obj}}=m))`;
+    } else if (type === 'json') {
+      source = `${hotPrefix}j=JSON.parse(${JSON.stringify(source)});export{j as default};if(h)h.accept(m=>j=m.default)`;
+    } else if (type === 'css') {
+      source = `${hotPrefix}s=h&&h.data.s||new CSSStyleSheet();s.replaceSync(${JSON.stringify(
+      source.replace(
+        cssUrlRegEx,
+        (_match, quotes = '', relUrl1, relUrl2) => `url(${quotes}${resolveUrl(relUrl1 || relUrl2, url)}${quotes})`
+      )
+    )});if(h){h.data.s=s;h.accept(()=>{})}export default s`;
+    } else if (type === 'ts') {
+      if (!esmsTsTransform) await initTs();
+      const transformed = esmsTsTransform(source, url);
+      // even if the TypeScript is valid JavaScript, unless it was a top-level inline source, it wasn't served with
+      // a valid JS MIME here, so we must still polyfill it
+      source = transformed === undefined ? source : transformed;
+    }
+    return { url, source, type };
+  };
 
-    load = registry[url] = {
+  const getOrCreateLoad = (url, fetchOpts, parent, source) => {
+    if (source && registry[url]) {
+      let i = 0;
+      while (registry[url + '#' + ++i]);
+      url += '#' + i;
+    }
+    let load = registry[url];
+    if (load) return load;
+    registry[url] = load = {
       // url
       u: url,
       // response url
-      r: undefined,
+      r: source ? url : undefined,
       // fetchPromise
       f: undefined,
       // source
-      S: undefined,
+      S: source,
       // linkPromise
       L: undefined,
       // analysis
@@ -2391,128 +1196,271 @@ function isSlowBuffer (obj) {
       b: undefined,
       // shellUrl
       s: undefined,
-      // needsShim
+      // needsShim: does it fail execution in the current native loader?
       n: false,
+      // shouldShim: does it need to be loaded by the polyfill loader?
+      N: false,
+      // type
+      t: null,
+      // meta
+      m: null
     };
-
     load.f = (async () => {
-      if (!source) {
-        const res = await fetchHook(url, { credentials: 'same-origin' });
-        if (!res.ok)
-          throw new Error(`${res.status} ${res.statusText} ${res.url}`);
-        load.r = res.url;
-        const contentType = res.headers.get('content-type');
-        if (contentType.match(/^(text|application)\/(x-)?javascript(;|$)/))
-          source = await res.text();
-        else
-          throw new Error(`Unknown Content-Type "${contentType}"`);
+      if (load.S === undefined) {
+        // preload fetch options override fetch options (race)
+        ({ url: load.r, source: load.S, type: load.t } = await (fetchCache[url] || fetchModule(url, fetchOpts, parent)));
+        if (
+          !load.n &&
+          load.t !== 'js' &&
+          !shimMode &&
+          ((load.t === 'css' && !supportsCssType) ||
+            (load.t === 'json' && !supportsJsonType) ||
+            (load.t === 'wasm' && !supportsWasmInstancePhase && !supportsWasmSourcePhase) ||
+            load.t === 'ts')
+        ) {
+          load.n = true;
+        }
       }
       try {
-        load.a = parse(source, load.u);
+        load.a = parse(load.S, load.u);
+      } catch (e) {
+        throwError(e);
+        load.a = [[], [], false];
       }
-      catch (e) {
-        console.warn(e);
-        load.a = [[], []];
-      }
-      load.S = source;
-      // determine if this source needs polyfilling
-      for (const { e: end, d: dynamicImportIndex } of load.a[0]) {
-        if (dynamicImportIndex === -2) {
-          if (!supportsImportMeta || source.slice(end, end + 8) === '.resolve') {
-            load.n = true;
-            break;
-          }
-        }
-        else if (dynamicImportIndex !== -1) {
-          if (!supportsDynamicImport || !supportsImportMaps && hasImportMap || importMapSrcOrLazy) {
-            load.n = true;
-            break;
-          }
-        }
-      }
+      return load;
     })();
-
-    load.L = load.f.then(async () => {    
-      load.d = await Promise.all(load.a[0].filter(d => d.d === -1).map(d => d.n).map(async depId => {
-        const { r, m } = resolve(depId, load.r || load.u);
-        if (!r)
-          throwUnresolved(depId, load.r || load.u);
-        if (m && (!supportsImportMaps || importMapSrcOrLazy))
-          load.n = true;
-        if (skip.test(r))
-          return { b: r };
-        const depLoad = getOrCreateLoad(r);
-        await depLoad.f;
-        return depLoad;
-      }));
-      if (!load.n)
-        load.n = load.d.some(dep => dep.n);
-    });
-
     return load;
-  }
+  };
 
-  let importMap = { imports: {}, scopes: {} };
-  let importMapSrcOrLazy = false;
-  let hasImportMap = false;
-  let importMapPromise = resolvedPromise;
+  const featErr = feat =>
+    Error(
+      `${feat} feature must be enabled via <script type="esms-options">{ "polyfillEnable": ["${feat}"] }<${''}/script>`
+    );
 
-  if (hasDocument) {
-    processScripts();
-    waitingForImportMapsInterval = setInterval(processScripts, 20);
-  }
+  const linkLoad = (load, fetchOpts) => {
+    if (load.L) return;
+    load.L = load.f.then(() => {
+      let childFetchOpts = fetchOpts;
+      load.d = load.a[0]
+        .map(({ n, d, t, a, se }) => {
+          const phaseImport = t >= 4;
+          const sourcePhase = phaseImport && t < 6;
+          if (phaseImport) {
+            if (!shimMode && (sourcePhase ? !wasmSourcePhaseEnabled : !deferPhaseEnabled))
+              throw featErr(sourcePhase ? 'wasm-module-sources' : 'import-defer');
+            if (!sourcePhase || !supportsWasmSourcePhase) load.n = true;
+          }
+          let source = undefined;
+          if (a > 0 && !shimMode && nativePassthrough) {
+            const assertion = load.S.slice(a, se - 1);
+            // no need to fetch JSON/CSS if supported, since it's a leaf node, we'll just strip the assertion syntax
+            if (assertion.includes('json')) {
+              if (supportsJsonType) source = '';
+              else load.n = true;
+            } else if (assertion.includes('css')) {
+              if (supportsCssType) source = '';
+              else load.n = true;
+            }
+          }
+          if (d !== -1 || !n) return;
+          const resolved = resolve(n, load.r || load.u);
+          if (resolved.n || hasCustomizationHooks) load.n = true;
+          if (d >= 0 || resolved.N) load.N = true;
+          if (d !== -1) return;
+          if (skip && skip(resolved.r) && !sourcePhase) return { l: { b: resolved.r }, s: false };
+          if (childFetchOpts.integrity) childFetchOpts = { ...childFetchOpts, integrity: undefined };
+          const child = { l: getOrCreateLoad(resolved.r, childFetchOpts, load.r, source), s: sourcePhase };
+          // assertion case -> inline the CSS / JSON URL directly
+          if (source === '') child.l.b = child.l.u;
+          if (!child.s) linkLoad(child.l, fetchOpts);
+          // load, sourcePhase
+          return child;
+        })
+        .filter(l => l);
+    });
+  };
 
-  async function processScripts () {
-    if (waitingForImportMapsInterval > 0 && document.readyState !== 'loading') {
-      clearTimeout(waitingForImportMapsInterval);
-      waitingForImportMapsInterval = 0;
+  const processScriptsAndPreloads = () => {
+    for (const link of document.querySelectorAll(shimMode ? 'link[rel=modulepreload-shim]' : 'link[rel=modulepreload]')) {
+      if (!link.ep) processPreload(link);
     }
-    for (const script of document.querySelectorAll('script[type="module-shim"],script[type="importmap-shim"],script[type="module"],script[type="importmap"]'))
-      await processScript(script);
-  }
-
-  new MutationObserver(mutations => {
-    for (const mutation of mutations) {
-      if (mutation.type !== 'childList') continue;
-      for (const node of mutation.addedNodes) {
-        if (node.tagName === 'SCRIPT' && node.type)
-          processScript(node, !firstTopLevelProcess);
+    for (const script of document.querySelectorAll('script[type]')) {
+      if (script.type === 'importmap' + (shimMode ? '-shim' : '')) {
+        if (!script.ep) processImportMap(script);
+      } else if (script.type === 'module' + (shimMode ? '-shim' : '')) {
+        legacyAcceptingImportMaps = false;
+        if (!script.ep) processScript(script);
       }
     }
-  }).observe(document, { childList: true, subtree: true });
+  };
 
-  async function processScript (script, dynamic) {
-    if (script.ep) // ep marker = script processed
-      return;
-    const shim = script.type.endsWith('-shim');
-    const type = shim ? script.type.slice(0, -5) : script.type;
-    if (!shim && shimMode || script.getAttribute('noshim') !== null)
-      return;
-    // empty inline scripts sometimes show before domready
-    if (!script.src && !script.innerHTML)
-      return;
-    script.ep = true;
-    if (type === 'module') {
-      await topLevelLoad(script.src || `${baseUrl}?${id++}`, !script.src && script.innerHTML, !shim).catch(onerror);
+  const getFetchOpts = script => {
+    const fetchOpts = {};
+    if (script.integrity) fetchOpts.integrity = script.integrity;
+    if (script.referrerPolicy) fetchOpts.referrerPolicy = script.referrerPolicy;
+    if (script.fetchPriority) fetchOpts.priority = script.fetchPriority;
+    if (script.crossOrigin === 'use-credentials') fetchOpts.credentials = 'include';
+    else if (script.crossOrigin === 'anonymous') fetchOpts.credentials = 'omit';
+    else fetchOpts.credentials = 'same-origin';
+    return fetchOpts;
+  };
+
+  let lastStaticLoadPromise = Promise.resolve();
+
+  let domContentLoaded = false;
+  let domContentLoadedCnt = 1;
+  const domContentLoadedCheck = m => {
+    if (m === undefined) {
+      if (domContentLoaded) return;
+      domContentLoaded = true;
+      domContentLoadedCnt--;
     }
-    else if (type === 'importmap') {
-      importMapPromise = importMapPromise.then(async () => {
-        if (script.src || dynamic)
-          importMapSrcOrLazy = true;
-        hasImportMap = true;
-        importMap = resolveAndComposeImportMap(script.src ? await (await fetchHook(script.src)).json() : JSON.parse(script.innerHTML), script.src || baseUrl, importMap);
+    if (--domContentLoadedCnt === 0 && !noLoadEventRetriggers && (shimMode || !baselineSupport)) {
+      document.removeEventListener('DOMContentLoaded', domContentLoadedEvent);
+      document.dispatchEvent(new Event('DOMContentLoaded'));
+    }
+  };
+  let loadCnt = 1;
+  const loadCheck = () => {
+    if (--loadCnt === 0 && !noLoadEventRetriggers && (shimMode || !baselineSupport)) {
+      window.removeEventListener('load', loadEvent);
+      window.dispatchEvent(new Event('load'));
+    }
+  };
+
+  const domContentLoadedEvent = async () => {
+    await initPromise;
+    domContentLoadedCheck();
+  };
+  const loadEvent = async () => {
+    await initPromise;
+    domContentLoadedCheck();
+    loadCheck();
+  };
+
+  // this should always trigger because we assume es-module-shims is itself a domcontentloaded requirement
+  if (hasDocument) {
+    document.addEventListener('DOMContentLoaded', domContentLoadedEvent);
+    window.addEventListener('load', loadEvent);
+  }
+
+  const readyListener = async () => {
+    await initPromise;
+    processScriptsAndPreloads();
+    if (document.readyState === 'complete') {
+      readyStateCompleteCheck();
+    }
+  };
+
+  let readyStateCompleteCnt = 1;
+  const readyStateCompleteCheck = () => {
+    if (--readyStateCompleteCnt === 0) {
+      domContentLoadedCheck();
+      if (!noLoadEventRetriggers && (shimMode || !baselineSupport)) {
+        document.removeEventListener('readystatechange', readyListener);
+        document.dispatchEvent(new Event('readystatechange'));
+      }
+    }
+  };
+
+  const hasNext = script => script.nextSibling || (script.parentNode && hasNext(script.parentNode));
+  const epCheck = (script, ready) =>
+    script.ep ||
+    (!ready && ((!script.src && !script.innerHTML) || !hasNext(script))) ||
+    script.getAttribute('noshim') !== null ||
+    !(script.ep = true);
+
+  const processImportMap = (script, ready = readyStateCompleteCnt > 0) => {
+    if (epCheck(script, ready)) return;
+    // we dont currently support external import maps in polyfill mode to match native
+    if (script.src) {
+      if (!shimMode) return;
+      importMapSrc = true;
+    }
+    importMapPromise = importMapPromise
+      .then(async () => {
+        composedImportMap = resolveAndComposeImportMap(
+          script.src ? await (await doFetch(script.src, getFetchOpts(script))).json() : JSON.parse(script.innerHTML),
+          script.src || baseUrl,
+          composedImportMap
+        );
+      })
+      .catch(e => {
+        if (e instanceof SyntaxError)
+          e = new Error(`Unable to parse import map ${e.message} in: ${script.src || script.innerHTML}`);
+        throwError(e);
       });
+    if (!firstImportMap && legacyAcceptingImportMaps) importMapPromise.then(() => (firstImportMap = composedImportMap));
+    if (!legacyAcceptingImportMaps && !multipleImportMaps) {
+      multipleImportMaps = true;
+      if (!shimMode && baselineSupport && !supportsMultipleImportMaps) {
+        baselineSupport = false;
+        if (hasDocument) attachMutationObserver();
+      }
     }
-  }
+    legacyAcceptingImportMaps = false;
+  };
 
-  function resolve (id, parentUrl) {
-    const urlResolved = resolveIfNotPlainOrUrl(id, parentUrl);
-    const resolved = resolveImportMap(importMap, urlResolved || id, parentUrl);
-    return { r: resolved, m: urlResolved !== resolved };
-  }
+  const processScript = (script, ready = readyStateCompleteCnt > 0) => {
+    if (epCheck(script, ready)) return;
+    // does this load block readystate complete
+    const isBlockingReadyScript = script.getAttribute('async') === null && readyStateCompleteCnt > 0;
+    // does this load block DOMContentLoaded
+    const isDomContentLoadedScript = domContentLoadedCnt > 0;
+    const isLoadScript = loadCnt > 0;
+    if (isLoadScript) loadCnt++;
+    if (isBlockingReadyScript) readyStateCompleteCnt++;
+    if (isDomContentLoadedScript) domContentLoadedCnt++;
+    let loadPromise;
+    const ts = script.lang === 'ts';
+    if (ts && !script.src) {
+      loadPromise = Promise.resolve(esmsTsTransform || initTs())
+        .then(() => {
+          const transformed = esmsTsTransform(script.innerHTML, baseUrl);
+          if (transformed !== undefined) {
+            onpolyfill();
+            firstPolyfillLoad = false;
+          }
+          return topLevelLoad(
+            script.src || baseUrl,
+            baseUrl,
+            getFetchOpts(script),
+            transformed === undefined ? script.innerHTML : transformed,
+            !shimMode && transformed === undefined,
+            isBlockingReadyScript && lastStaticLoadPromise,
+            'ts'
+          );
+        })
+        .catch(throwError);
+    } else {
+      loadPromise = topLevelLoad(
+        script.src || baseUrl,
+        baseUrl,
+        getFetchOpts(script),
+        !script.src ? script.innerHTML : undefined,
+        !shimMode,
+        isBlockingReadyScript && lastStaticLoadPromise,
+        ts ? 'ts' : undefined
+      ).catch(throwError);
+    }
+    if (!noLoadEventRetriggers) loadPromise.then(() => script.dispatchEvent(new Event('load')));
+    if (isBlockingReadyScript && !ts) {
+      lastStaticLoadPromise = loadPromise.then(readyStateCompleteCheck);
+    }
+    if (isDomContentLoadedScript) loadPromise.then(domContentLoadedCheck);
+    if (isLoadScript) loadPromise.then(loadCheck);
+  };
 
-  function throwUnresolved (id, parentUrl) {
-    throw Error("Unable to resolve specifier '" + id + (parentUrl ? "' from " + parentUrl : "'"));
-  }
+  const fetchCache = {};
+  const processPreload = link => {
+    link.ep = true;
+    initPromise.then(() => {
+      if (baselineSupport && !shimMode) return;
+      if (fetchCache[link.href]) return;
+      fetchCache[link.href] = fetchModule(link.href, getFetchOpts(link));
+    });
+  };
 
-}());
+})();
+
+export { esModuleShims as default };

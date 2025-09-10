@@ -1,7 +1,7 @@
 import createRegl from "regl";
 
 const regl = createRegl({
-  pixelRatio: window.devicePixelRatio,
+  pixelRatio: 1, // window.devicePixelRatio,
   extensions: [
     "WEBGL_depth_texture",
     "oes_texture_float",

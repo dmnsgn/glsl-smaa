@@ -1,1498 +1,1856 @@
-import { e as esm } from './common/index-8c24c670.js';
-import './common/vec2-459f0f35.js';
-import './common/es.typed-array.float32-array-63f1a6c1.js';
-import './common/to-object-b1d92deb.js';
-import './common/redefine-all-3eefef53.js';
-
-var primitiveQuad_1 = primitiveQuad;
-
-function primitiveQuad(scale) {
-  scale = typeof scale !== 'undefined' ? scale : 1;
-
-  if (!Array.isArray(scale)) {
-    scale = [scale, scale];
-  }
-
-  var positions = [[-scale[0], -scale[1], 0], [scale[0], -scale[1], 0], [scale[0], scale[1], 0], [-scale[0], scale[1], 0]];
-  var cells = [[0, 1, 2], [2, 3, 0]];
-  var uvs = [[0, 0], [1, 0], [1, 1], [0, 1]];
-  var n = [0, 0, -1];
-  var normals = [n.slice(), n.slice(), n.slice(), n.slice()];
-  return {
-    positions: positions,
-    cells: cells,
-    uvs: uvs,
-    normals: normals
-  };
+/** @module utils */ /**
+ * Two times PI.
+ * @constant {number}
+ */ const TAU = Math.PI * 2;
+/**
+ * Two times PI.
+ * @constant {number}
+ */ const HALF_PI = Math.PI / 2;
+/**
+ * Square root of 2.
+ * @constant {number}
+ */ const SQRT2 = Math.sqrt(2);
+/**
+ * Normalize a vector 3.
+ * @param {number[]} v Vector 3 array
+ * @returns {number[]} Normalized vector
+ */ function normalize(v) {
+    const l = 1 / (Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) || 1);
+    v[0] *= l;
+    v[1] *= l;
+    v[2] *= l;
+    return v;
 }
-
-// 3x3 plane:
-//
-//  0   1   2   3
-//  4   5   6   7
-//  8   9  10  11
-// 12  13  14  15
-function createPlane(sx, sy, nx, ny, options) {
-  sx = sx || 1;
-  sy = sy || sx;
-  nx = nx || 1;
-  ny = ny || nx;
-  var quads = options && options.quads ? options.quads : false;
-  var positions = [];
-  var uvs = [];
-  var normals = [];
-  var cells = [];
-
-  for (var iy = 0; iy <= ny; iy++) {
-    for (var ix = 0; ix <= nx; ix++) {
-      var u = ix / nx;
-      var v = iy / ny;
-      var x = -sx / 2 + u * sx; // starts on the left
-
-      var y = sy / 2 - v * sy; // starts at the top
-
-      positions.push([x, y, 0]);
-      uvs.push([u, 1.0 - v]);
-      normals.push([0, 0, 1]);
-
-      if (iy < ny && ix < nx) {
-        if (quads) {
-          cells.push([iy * (nx + 1) + ix, (iy + 1) * (nx + 1) + ix, (iy + 1) * (nx + 1) + ix + 1, iy * (nx + 1) + ix + 1]);
-        } else {
-          cells.push([iy * (nx + 1) + ix, (iy + 1) * (nx + 1) + ix + 1, iy * (nx + 1) + ix + 1]);
-          cells.push([(iy + 1) * (nx + 1) + ix + 1, iy * (nx + 1) + ix, (iy + 1) * (nx + 1) + ix]);
+/**
+ * Ensure first argument passed to the primitive functions is an object
+ * @param {...*} args
+ */ function checkArguments(args) {
+    const argumentType = typeof args[0];
+    if (argumentType !== "object" && argumentType !== "undefined") {
+        console.error("First argument must be an object.");
+    }
+}
+/**
+ * @private
+ */ let TYPED_ARRAY_TYPE;
+/**
+ * Enforce a typed array constructor for cells
+ * @param {(Class<Uint8Array>|Class<Uint16Array>|Class<Uint32Array>)} type
+ */ function setTypedArrayType(type) {
+    TYPED_ARRAY_TYPE = type;
+}
+/**
+ * Select cells typed array from a size determined by amount of vertices.
+ *
+ * @param {number} size The max value expected
+ * @returns {(Uint8Array|Uint16Array|Uint32Array)}
+ * @see [MDN TypedArray objects]{@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray#typedarray_objects}
+ */ const getCellsTypedArray = (size)=>TYPED_ARRAY_TYPE || (size <= 255 ? Uint8Array : size <= 65535 ? Uint16Array : Uint32Array);
+/**
+ * @private
+ */ const TMP = [
+    0,
+    0,
+    0
+];
+/**
+ * @private
+ */ const PLANE_DIRECTIONS = {
+    z: [
+        0,
+        1,
+        2,
+        1,
+        -1,
+        1
+    ],
+    "-z": [
+        0,
+        1,
+        2,
+        -1,
+        -1,
+        -1
+    ],
+    "-x": [
+        2,
+        1,
+        0,
+        1,
+        -1,
+        -1
+    ],
+    x: [
+        2,
+        1,
+        0,
+        -1,
+        -1,
+        1
+    ],
+    y: [
+        0,
+        2,
+        1,
+        1,
+        1,
+        1
+    ],
+    "-y": [
+        0,
+        2,
+        1,
+        1,
+        -1,
+        -1
+    ]
+};
+/**
+ * @private
+ */ function computePlane(geometry, indices, su, sv, nu, nv, direction = "z", pw = 0, quads = false, uvScale = [
+    1,
+    1
+], uvOffset = [
+    0,
+    0
+], center = [
+    0,
+    0,
+    0
+], ccw = true) {
+    const { positions, normals, uvs, cells } = geometry;
+    const [u, v, w, flipU, flipV, normal] = PLANE_DIRECTIONS[direction];
+    const vertexOffset = indices.vertex;
+    for(let j = 0; j <= nv; j++){
+        for(let i = 0; i <= nu; i++){
+            positions[indices.vertex * 3 + u] = (-su / 2 + i * su / nu) * flipU + center[u];
+            positions[indices.vertex * 3 + v] = (-sv / 2 + j * sv / nv) * flipV + center[v];
+            positions[indices.vertex * 3 + w] = pw + center[w];
+            normals[indices.vertex * 3 + w] = normal;
+            uvs[indices.vertex * 2] = i / nu * uvScale[0] + uvOffset[0];
+            uvs[indices.vertex * 2 + 1] = (1 - j / nv) * uvScale[1] + uvOffset[1];
+            indices.vertex++;
+            if (j < nv && i < nu) {
+                const n = vertexOffset + j * (nu + 1) + i;
+                if (quads) {
+                    const o = vertexOffset + (j + 1) * (nu + 1) + i;
+                    cells[indices.cell] = n;
+                    cells[indices.cell + 1] = o;
+                    cells[indices.cell + 2] = o + 1;
+                    cells[indices.cell + 3] = n + 1;
+                } else {
+                    cells[indices.cell] = n;
+                    cells[indices.cell + (ccw ? 1 : 2)] = n + nu + 1;
+                    cells[indices.cell + (ccw ? 2 : 1)] = n + nu + 2;
+                    cells[indices.cell + 3] = n;
+                    cells[indices.cell + (ccw ? 4 : 5)] = n + nu + 2;
+                    cells[indices.cell + (ccw ? 5 : 4)] = n + 1;
+                }
+                indices.cell += quads ? 4 : 6;
+            }
         }
-      }
     }
-  }
-
-  return {
-    positions: positions,
-    normals: normals,
-    uvs: uvs,
-    cells: cells
-  };
+    return geometry;
 }
 
-var primitivePlane = createPlane;
-
-function createCube(sx, sy, sz, nx, ny, nz) {
-  if (sx === undefined) sx = 1.0;
-  if (sy === undefined) sy = sx;
-  if (sz === undefined) sz = sx;
-  if (nx === undefined) nx = 1.0;
-  if (ny === undefined) ny = nx;
-  if (nz === undefined) nz = nx;
-  var vertexIndex = 0;
-  var positions = [];
-  var normals = [];
-  var uvs = [];
-  var cells = [];
-
-  function makePlane(u, v, w, su, sv, nu, nv, pw, flipu, flipv) {
-    var vertShift = vertexIndex;
-
-    for (var j = 0; j <= nv; j++) {
-      for (var i = 0; i <= nu; i++) {
-        var vert = positions[vertexIndex] = [0, 0, 0];
-        vert[u] = (-su / 2 + i * su / nu) * flipu;
-        vert[v] = (-sv / 2 + j * sv / nv) * flipv;
-        vert[w] = pw;
-        var normal = normals[vertexIndex] = [0, 0, 0];
-        normal[u] = 0;
-        normal[v] = 0;
-        normal[w] = pw / Math.abs(pw);
-        var texCoord = uvs[vertexIndex] = [0, 0];
-        texCoord[0] = i / nu;
-        texCoord[1] = 1.0 - j / nv;
-        ++vertexIndex;
-      }
-    }
-
-    for (var j = 0; j < nv; j++) {
-      for (var i = 0; i < nu; i++) {
-        var n = vertShift + j * (nu + 1) + i;
-        cells.push([n, n + nu + 1, n + nu + 2]);
-        cells.push([n, n + nu + 2, n + 1]);
-      }
-    }
-  }
-
-  makePlane(0, 1, 2, sx, sy, nx, ny, sz / 2, 1, -1); //front
-
-  makePlane(0, 1, 2, sx, sy, nx, ny, -sz / 2, -1, -1); //back
-
-  makePlane(2, 1, 0, sz, sy, nz, ny, -sx / 2, 1, -1); //left
-
-  makePlane(2, 1, 0, sz, sy, nz, ny, sx / 2, -1, -1); //right
-
-  makePlane(0, 2, 1, sx, sz, nx, nz, sy / 2, 1, 1); //top
-
-  makePlane(0, 2, 1, sx, sz, nx, nz, -sy / 2, 1, -1); //bottom
-
-  return {
-    positions: positions,
-    normals: normals,
-    uvs: uvs,
-    cells: cells
-  };
-}
-
-var primitiveCube = createCube;
-
-function create() {
-  return [0, 0, 0];
-}
-
-function equals(a, b) {
-  return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
-}
-
-function equals3(a, x, y, z) {
-  return a[0] === x && a[1] === y && a[2] === z;
-}
-
-function set(a, b) {
-  a[0] = b[0];
-  a[1] = b[1];
-  a[2] = b[2];
-  return a;
-}
-
-function set3(a, x, y, z) {
-  a[0] = x;
-  a[1] = y;
-  a[2] = z;
-  return a;
-}
-
-function add(a, b) {
-  a[0] += b[0];
-  a[1] += b[1];
-  a[2] += b[2];
-  return a;
-}
-
-function add3(a, x, y, z) {
-  a[0] += x;
-  a[1] += y;
-  a[2] += z;
-  return a;
-}
-
-function sub(a, b) {
-  a[0] -= b[0];
-  a[1] -= b[1];
-  a[2] -= b[2];
-  return a;
-}
-
-function sub3(a, x, y, z) {
-  a[0] -= x;
-  a[1] -= y;
-  a[2] -= z;
-  return a;
-}
-
-function scale(a, n) {
-  a[0] *= n;
-  a[1] *= n;
-  a[2] *= n;
-  return a;
-}
-
-function multMat4(a, m) {
-  var x = a[0];
-  var y = a[1];
-  var z = a[2];
-  a[0] = m[0] * x + m[4] * y + m[8] * z + m[12];
-  a[1] = m[1] * x + m[5] * y + m[9] * z + m[13];
-  a[2] = m[2] * x + m[6] * y + m[10] * z + m[14];
-  return a;
-}
-
-function multQuat(a, q) {
-  var x = a[0];
-  var y = a[1];
-  var z = a[2];
-  var qx = q[0];
-  var qy = q[1];
-  var qz = q[2];
-  var qw = q[3];
-  var ix = qw * x + qy * z - qz * y;
-  var iy = qw * y + qz * x - qx * z;
-  var iz = qw * z + qx * y - qy * x;
-  var iw = -qx * x - qy * y - qz * z;
-  a[0] = ix * qw + iw * -qx + iy * -qz - iz * -qy;
-  a[1] = iy * qw + iw * -qy + iz * -qx - ix * -qz;
-  a[2] = iz * qw + iw * -qz + ix * -qy - iy * -qx;
-  return a;
-}
-
-function dot(a, b) {
-  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-}
-
-function cross(a, b) {
-  var x = a[0];
-  var y = a[1];
-  var z = a[2];
-  var vx = b[0];
-  var vy = b[1];
-  var vz = b[2];
-  a[0] = y * vz - vy * z;
-  a[1] = z * vx - vz * x;
-  a[2] = x * vy - vx * y;
-  return a;
-}
-
-function cross3(a, x, y, z) {
-  var _x = a[0];
-  var _y = a[1];
-  var _z = a[2];
-  a[0] = _y * z - y * _z;
-  a[1] = _z * x - z * _x;
-  a[2] = _x * y - x * _y;
-  return a;
-}
-
-function length(a) {
-  var x = a[0];
-  var y = a[1];
-  var z = a[2];
-  return Math.sqrt(x * x + y * y + z * z);
-}
-
-function lengthSq(a) {
-  var x = a[0];
-  var y = a[1];
-  var z = a[2];
-  return x * x + y * y + z * z;
-}
-
-function normalize(a) {
-  var x = a[0];
-  var y = a[1];
-  var z = a[2];
-  var l = Math.sqrt(x * x + y * y + z * z);
-  l = 1.0 / (l || 1);
-  a[0] *= l;
-  a[1] *= l;
-  a[2] *= l;
-  return a;
-}
-
-function distance(a, b) {
-  return distance3(a, b[0], b[1], b[2]);
-}
-
-function distance3(a, x, y, z) {
-  var dx = x - a[0];
-  var dy = y - a[1];
-  var dz = z - a[2];
-  return Math.sqrt(dx * dx + dy * dy + dz * dz);
-}
-
-function distanceSq(a, b) {
-  return distanceSq3(a, b[0], b[1], b[2]);
-}
-
-function distanceSq3(a, x, y, z) {
-  var dx = x - a[0];
-  var dy = y - a[1];
-  var dz = z - a[2];
-  return dx * dx + dy * dy + dz * dz;
-}
-
-function limit(a, n) {
-  var x = a[0];
-  var y = a[1];
-  var z = a[2];
-  var dsq = x * x + y * y + z * z;
-  var lsq = n * n;
-
-  if (lsq > 0 && dsq > lsq) {
-    var nd = n / Math.sqrt(dsq);
-    a[0] *= nd;
-    a[1] *= nd;
-    a[2] *= nd;
-  }
-
-  return a;
-}
-
-function invert(a) {
-  a[0] *= -1;
-  a[1] *= -1;
-  a[2] *= -1;
-  return a;
-}
-
-function lerp(a, b, n) {
-  var x = a[0];
-  var y = a[1];
-  var z = a[2];
-  a[0] = x + (b[0] - x) * n;
-  a[1] = y + (b[1] - y) * n;
-  a[2] = z + (b[2] - z) * n;
-  return a;
-}
-
-function toZero(a) {
-  a[0] = a[1] = a[2] = 0;
-  return a;
-}
-
-function toOne(a) {
-  a[0] = a[1] = a[2] = 1;
-  return a;
-}
-
-function toMax(a) {
-  a[0] = a[1] = a[2] = Number.MAX_VALUE;
-  return a;
-}
-
-function toMin(a) {
-  a[0] = a[1] = a[2] = -Number.MAX_VALUE;
-  return a;
-}
-
-function toAbs(a) {
-  a[0] = Math.abs(a[0]);
-  a[1] = Math.abs(a[1]);
-  a[2] = Math.abs(a[2]);
-  return a;
-}
-
-function xAxis() {
-  return [1, 0, 0];
-}
-
-function yAxis() {
-  return [0, 1, 0];
-}
-
-function zAxis() {
-  return [0, 0, 1];
-}
-
-function toString(a, precision) {
-  precision = precision || Math.pow(10, 4);
-  var s = '[';
-  s += Math.floor(a[0] * precision) / precision + ', ';
-  s += Math.floor(a[1] * precision) / precision + ', ';
-  s += Math.floor(a[2] * precision) / precision + ']';
-  return s;
-}
-
-function copy(a, out) {
-  if (out !== undefined) {
-    out[0] = a[0];
-    out[1] = a[1];
-    out[2] = a[2];
-    return out;
-  }
-
-  return a.slice(0);
-}
-
-var Vec3 = {
-  create: create,
-  set: set,
-  set3: set3,
-  copy: copy,
-  equals: equals,
-  equals3: equals3,
-  add: add,
-  add3: add3,
-  sub: sub,
-  sub3: sub3,
-  scale: scale,
-  multMat4: multMat4,
-  multQuat: multQuat,
-  dot: dot,
-  cross: cross,
-  cross3: cross3,
-  length: length,
-  lengthSq: lengthSq,
+var utils = /*#__PURE__*/Object.freeze({
+  __proto__: null,
+  HALF_PI: HALF_PI,
+  PLANE_DIRECTIONS: PLANE_DIRECTIONS,
+  SQRT2: SQRT2,
+  TAU: TAU,
+  TMP: TMP,
+  checkArguments: checkArguments,
+  computePlane: computePlane,
+  getCellsTypedArray: getCellsTypedArray,
   normalize: normalize,
-  distance: distance,
-  distance3: distance3,
-  distanceSq: distanceSq,
-  distanceSq3: distanceSq3,
-  limit: limit,
-  invert: invert,
-  lerp: lerp,
-  toZero: toZero,
-  toOne: toOne,
-  toMin: toMin,
-  toMax: toMax,
-  toAbs: toAbs,
-  xAxis: xAxis,
-  yAxis: yAxis,
-  zAxis: zAxis,
-  toString: toString
-};
-var Vec3_1 = Vec3;
+  setTypedArrayType: setTypedArrayType
+});
 
-function createRoundedCube(sx, sy, sz, nx, ny, nz, radius) {
-  if (sx === undefined) sx = 1.0;
-  if (sy === undefined) sy = sx;
-  if (sz === undefined) sz = sx;
-  if (nx === undefined) nx = 1.0;
-  if (ny === undefined) ny = nx;
-  if (nz === undefined) nz = nx;
-  if (radius == undefined) radius = 0;
-  var rx = sx / 2.0;
-  var ry = sy / 2.0;
-  var rz = sz / 2.0;
-  var cube = primitiveCube(sx, sy, sz, nx, ny, nz);
-  var positions = cube.positions;
-  var normals = cube.normals;
-  var tmp = [0, 0, 0];
-
-  for (var i = 0; i < positions.length; i++) {
-    var pos = positions[i];
-    var normal = normals[i];
-    var inner = Vec3_1.copy(pos);
-
-    if (pos[0] < -rx + radius) {
-      inner[0] = -rx + radius;
-    } else if (pos[0] > rx - radius) {
-      inner[0] = rx - radius;
-    }
-
-    if (pos[1] < -ry + radius) {
-      inner[1] = -ry + radius;
-    } else if (pos[1] > ry - radius) {
-      inner[1] = ry - radius;
-    }
-
-    if (pos[2] < -rz + radius) {
-      inner[2] = -rz + radius;
-    } else if (pos[2] > rz - radius) {
-      inner[2] = rz - radius;
-    }
-
-    Vec3_1.set(normal, pos);
-    Vec3_1.sub(normal, inner);
-    Vec3_1.normalize(normal);
-    Vec3_1.set(pos, inner);
-    Vec3_1.set(tmp, normal);
-    Vec3_1.scale(tmp, radius);
-    Vec3_1.add(pos, tmp);
-  }
-
-  return cube;
-}
-
-var primitiveRoundedCube = createRoundedCube;
-
-function createCapsule(radius, height, numSubdivisionsHeight, numSegments) {
-  if (radius === undefined) radius = 0.5;
-  if (height === undefined) height = radius * 2;
-  if (numSubdivisionsHeight === undefined) numSubdivisionsHeight = 12;
-  if (numSegments === undefined) numSegments = 12;
-  var positions = [];
-  var normals = [];
-  var uvs = [];
-  var cells = [];
-
-  function calculateRing(segments, r, y, dy) {
-    var segIncr = 1.0 / (segments - 1);
-
-    for (var s = 0; s < segments; s++) {
-      var x = -Math.cos(Math.PI * 2 * s * segIncr) * r;
-      var z = Math.sin(Math.PI * 2 * s * segIncr) * r;
-      positions.push([radius * x, radius * y + height * dy, radius * z]);
-      normals.push([x, y, z]);
-      var u = s * segIncr;
-      var v = 0.5 - (radius * y + height * dy) / (2.0 * radius + height);
-      uvs.push([u, 1.0 - v]);
-    }
-  }
-
-  var ringsBody = numSubdivisionsHeight + 1;
-  var ringsTotal = numSubdivisionsHeight + ringsBody;
-  var bodyIncr = 1.0 / (ringsBody - 1);
-  var ringIncr = 1.0 / (numSubdivisionsHeight - 1);
-
-  for (var r = 0; r < numSubdivisionsHeight / 2; r++) {
-    calculateRing(numSegments, Math.sin(Math.PI * r * ringIncr), Math.sin(Math.PI * (r * ringIncr - 0.5)), -0.5);
-  }
-
-  for (var r = 0; r < ringsBody; r++) {
-    calculateRing(numSegments, 1.0, 0.0, r * bodyIncr - 0.5);
-  }
-
-  for (var r = numSubdivisionsHeight / 2; r < numSubdivisionsHeight; r++) {
-    calculateRing(numSegments, Math.sin(Math.PI * r * ringIncr), Math.sin(Math.PI * (r * ringIncr - 0.5)), +0.5);
-  }
-
-  for (var r = 0; r < ringsTotal - 1; r++) {
-    for (var s = 0; s < numSegments - 1; s++) {
-      cells.push([r * numSegments + (s + 0), r * numSegments + (s + 1), (r + 1) * numSegments + (s + 1)]);
-      cells.push([r * numSegments + s, (r + 1) * numSegments + (s + 1), (r + 1) * numSegments + (s + 0)]);
-    }
-  }
-
-  return {
-    positions: positions,
-    normals: normals,
-    uvs: uvs,
-    cells: cells
-  };
-}
-
-var primitiveCapsule = createCapsule;
-
-var identity_1 = identity;
 /**
- * Set a mat4 to the identity matrix
- *
- * @param {mat4} out the receiving matrix
- * @returns {mat4} out
- */
-
-function identity(out) {
-  out[0] = 1;
-  out[1] = 0;
-  out[2] = 0;
-  out[3] = 0;
-  out[4] = 0;
-  out[5] = 1;
-  out[6] = 0;
-  out[7] = 0;
-  out[8] = 0;
-  out[9] = 0;
-  out[10] = 1;
-  out[11] = 0;
-  out[12] = 0;
-  out[13] = 0;
-  out[14] = 0;
-  out[15] = 1;
-  return out;
+ * @typedef {object} BoxOptions
+ * @property {number} [sx=1]
+ * @property {number} [sy=sx]
+ * @property {number} [sz=sx]
+ */ /**
+ * @alias module:box
+ * @param {BoxOptions} [options={}]
+ * @returns {import("../types.js").BasicSimplicialComplex}
+ */ function box({ sx = 1, sy = sx, sz = sx } = {}) {
+    checkArguments(arguments);
+    const x = sx / 2;
+    const y = sy / 2;
+    const z = sz / 2;
+    return {
+        // prettier-ignore
+        positions: Float32Array.of(-x, y, z, -x, -y, z, x, -y, z, x, y, z, // -z
+        x, y, -z, x, -y, -z, -x, -y, -z, -x, y, -z),
+        // prettier-ignore
+        cells: Uint8Array.of(0, 1, 2, 3, 3, 2, 5, 4, 4, 5, 6, 7, 7, 6, 1, 0, 7, 0, 3, 4, 1, 6, 5, 2)
+    };
 }
 
-var rotateY_1 = rotateY;
 /**
- * Rotates a matrix by the given angle around the Y axis
- *
- * @param {mat4} out the receiving matrix
- * @param {mat4} a the matrix to rotate
- * @param {Number} rad the angle to rotate the matrix by
- * @returns {mat4} out
- */
-
-function rotateY(out, a, rad) {
-  var s = Math.sin(rad),
-      c = Math.cos(rad),
-      a00 = a[0],
-      a01 = a[1],
-      a02 = a[2],
-      a03 = a[3],
-      a20 = a[8],
-      a21 = a[9],
-      a22 = a[10],
-      a23 = a[11];
-
-  if (a !== out) {
-    // If the source and destination differ, copy the unchanged rows
-    out[4] = a[4];
-    out[5] = a[5];
-    out[6] = a[6];
-    out[7] = a[7];
-    out[12] = a[12];
-    out[13] = a[13];
-    out[14] = a[14];
-    out[15] = a[15];
-  } // Perform axis-specific matrix multiplication
-
-
-  out[0] = a00 * c - a20 * s;
-  out[1] = a01 * c - a21 * s;
-  out[2] = a02 * c - a22 * s;
-  out[3] = a03 * c - a23 * s;
-  out[8] = a00 * s + a20 * c;
-  out[9] = a01 * s + a21 * c;
-  out[10] = a02 * s + a22 * c;
-  out[11] = a03 * s + a23 * c;
-  return out;
-}
-
-var rotateZ_1 = rotateZ;
-/**
- * Rotates a matrix by the given angle around the Z axis
- *
- * @param {mat4} out the receiving matrix
- * @param {mat4} a the matrix to rotate
- * @param {Number} rad the angle to rotate the matrix by
- * @returns {mat4} out
- */
-
-function rotateZ(out, a, rad) {
-  var s = Math.sin(rad),
-      c = Math.cos(rad),
-      a00 = a[0],
-      a01 = a[1],
-      a02 = a[2],
-      a03 = a[3],
-      a10 = a[4],
-      a11 = a[5],
-      a12 = a[6],
-      a13 = a[7];
-
-  if (a !== out) {
-    // If the source and destination differ, copy the unchanged last row
-    out[8] = a[8];
-    out[9] = a[9];
-    out[10] = a[10];
-    out[11] = a[11];
-    out[12] = a[12];
-    out[13] = a[13];
-    out[14] = a[14];
-    out[15] = a[15];
-  } // Perform axis-specific matrix multiplication
-
-
-  out[0] = a00 * c + a10 * s;
-  out[1] = a01 * c + a11 * s;
-  out[2] = a02 * c + a12 * s;
-  out[3] = a03 * c + a13 * s;
-  out[4] = a10 * c - a00 * s;
-  out[5] = a11 * c - a01 * s;
-  out[6] = a12 * c - a02 * s;
-  out[7] = a13 * c - a03 * s;
-  return out;
-}
-
-var scale_1 = scale$1;
-/**
- * Scales a vec3 by a scalar number
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the vector to scale
- * @param {Number} b amount to scale the vector by
- * @returns {vec3} out
- */
-
-function scale$1(out, a, b) {
-  out[0] = a[0] * b;
-  out[1] = a[1] * b;
-  out[2] = a[2] * b;
-  return out;
-}
-
-var transformMat4_1 = transformMat4;
-/**
- * Transforms the vec3 with a mat4.
- * 4th vector component is implicitly '1'
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the vector to transform
- * @param {mat4} m matrix to transform with
- * @returns {vec3} out
- */
-
-function transformMat4(out, a, m) {
-  var x = a[0],
-      y = a[1],
-      z = a[2],
-      w = m[3] * x + m[7] * y + m[11] * z + m[15];
-  w = w || 1.0;
-  out[0] = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w;
-  out[1] = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
-  out[2] = (m[2] * x + m[6] * y + m[10] * z + m[14]) / w;
-  return out;
-}
-
-var normalize_1 = normalize$1;
-/**
- * Normalize a vec3
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a vector to normalize
- * @returns {vec3} out
- */
-
-function normalize$1(out, a) {
-  var x = a[0],
-      y = a[1],
-      z = a[2];
-  var len = x * x + y * y + z * z;
-
-  if (len > 0) {
-    //TODO: evaluate use of glm_invsqrt here?
-    len = 1 / Math.sqrt(len);
-    out[0] = a[0] * len;
-    out[1] = a[1] * len;
-    out[2] = a[2] * len;
-  }
-
-  return out;
-}
-
-var matRotY = identity_1([]);
-var matRotZ = identity_1([]);
-var up = [0, 1, 0];
-var tmpVec3 = [0, 0, 0];
-var primitiveSphere_1 = primitiveSphere;
-
-function primitiveSphere(radius, opt) {
-  opt = opt || {};
-  radius = typeof radius !== 'undefined' ? radius : 1;
-  var segments = typeof opt.segments !== 'undefined' ? opt.segments : 32;
-  var totalZRotationSteps = 2 + segments;
-  var totalYRotationSteps = 2 * totalZRotationSteps;
-  var indices = [];
-  var positions = [];
-  var normals = [];
-  var uvs = [];
-
-  for (var zRotationStep = 0; zRotationStep <= totalZRotationSteps; zRotationStep++) {
-    var normalizedZ = zRotationStep / totalZRotationSteps;
-    var angleZ = normalizedZ * Math.PI;
-
-    for (var yRotationStep = 0; yRotationStep <= totalYRotationSteps; yRotationStep++) {
-      var normalizedY = yRotationStep / totalYRotationSteps;
-      var angleY = normalizedY * Math.PI * 2;
-      identity_1(matRotZ);
-      rotateZ_1(matRotZ, matRotZ, -angleZ);
-      identity_1(matRotY);
-      rotateY_1(matRotY, matRotY, angleY);
-      transformMat4_1(tmpVec3, up, matRotZ);
-      transformMat4_1(tmpVec3, tmpVec3, matRotY);
-      scale_1(tmpVec3, tmpVec3, -radius);
-      positions.push(tmpVec3.slice());
-      normalize_1(tmpVec3, tmpVec3);
-      normals.push(tmpVec3.slice());
-      uvs.push([normalizedY, normalizedZ]);
+ * @typedef {object} CircleOptions
+ * @property {number} [radius=0.5]
+ * @property {number} [segments=32]
+ * @property {number} [theta=TAU]
+ * @property {number} [thetaOffset=0]
+ * @property {boolean} [closed=false]
+ */ /**
+ * @alias module:circle
+ * @param {CircleOptions} [options={}]
+ * @returns {import("../types.js").BasicSimplicialComplex}
+ */ function circle({ radius = 0.5, segments = 32, theta = TAU, thetaOffset = 0, closed = false } = {}) {
+    checkArguments(arguments);
+    const positions = new Float32Array(segments * 3);
+    const cells = new (getCellsTypedArray(segments))((segments - (closed ? 0 : 1)) * 2);
+    for(let i = 0; i < segments; i++){
+        const t = i / segments * theta + thetaOffset;
+        positions[i * 3] = radius * Math.cos(t);
+        positions[i * 3 + 1] = radius * Math.sin(t);
+        if (i > 0) {
+            cells[(i - 1) * 2] = i - 1;
+            cells[(i - 1) * 2 + 1] = i;
+        }
     }
-
-    if (zRotationStep > 0) {
-      var verticesCount = positions.length;
-      var firstIndex = verticesCount - 2 * (totalYRotationSteps + 1);
-
-      for (; firstIndex + totalYRotationSteps + 2 < verticesCount; firstIndex++) {
-        indices.push([firstIndex, firstIndex + 1, firstIndex + totalYRotationSteps + 1]);
-        indices.push([firstIndex + totalYRotationSteps + 1, firstIndex + 1, firstIndex + totalYRotationSteps + 2]);
-      }
+    if (closed) {
+        cells[(segments - 1) * 2] = segments - 1;
+        cells[(segments - 1) * 2 + 1] = 0;
     }
-  }
-
-  return {
-    cells: indices,
-    positions: positions,
-    normals: normals,
-    uvs: uvs
-  };
+    return {
+        positions,
+        cells
+    };
 }
 
-var normalizeNd = normalize$2;
-
-function normalize$2(vec) {
-  var mag = 0;
-
-  for (var n = 0; n < vec.length; n++) {
-    mag += vec[n] * vec[n];
-  }
-
-  mag = Math.sqrt(mag); // avoid dividing by zero
-
-  if (mag === 0) {
-    return Array.apply(null, new Array(vec.length)).map(Number.prototype.valueOf, 0);
-  }
-
-  for (var n = 0; n < vec.length; n++) {
-    vec[n] /= mag;
-  }
-
-  return vec;
+/**
+ * @typedef {object} QuadOptions
+ * @property {number} [scale=0.5]
+ */ /**
+ * @alias module:quad
+ * @param {QuadOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function quad({ scale = 0.5 } = {}) {
+    checkArguments(arguments);
+    return {
+        // prettier-ignore
+        positions: Float32Array.of(-scale, -scale, 0, scale, -scale, 0, scale, scale, 0, -scale, scale, 0),
+        // prettier-ignore
+        normals: Int8Array.of(0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1),
+        // prettier-ignore
+        uvs: Uint8Array.of(0, 0, 1, 0, 1, 1, 0, 1),
+        // prettier-ignore
+        cells: getCellsTypedArray(12).of(0, 1, 2, 2, 3, 0)
+    };
 }
 
-var icosphere_1 = icosphere;
+/**
+ * @typedef {object} PlaneOptions
+ * @property {number} [sx=1]
+ * @property {number} [sy=sx]
+ * @property {number} [nx=1]
+ * @property {number} [ny=nx]
+ * @property {PlaneDirection} [direction="z"]
+ * @property {boolean} [quads=false]
+ */ /**
+ * @typedef {"x" | "-x" | "y" | "-y" | "z" | "-z"} PlaneDirection
+ */ /**
+ * @alias module:plane
+ * @param {PlaneOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function plane({ sx = 1, sy = sx, nx = 1, ny = nx, direction = "z", quads = false } = {}) {
+    checkArguments(arguments);
+    const size = (nx + 1) * (ny + 1);
+    return computePlane({
+        positions: new Float32Array(size * 3),
+        normals: new Float32Array(size * 3),
+        uvs: new Float32Array(size * 2),
+        cells: new (getCellsTypedArray(size))(nx * ny * (quads ? 4 : 6))
+    }, {
+        vertex: 0,
+        cell: 0
+    }, sx, sy, nx, ny, direction, 0, quads);
+}
 
-function icosphere(subdivisions) {
-  subdivisions = +subdivisions | 0;
-  var positions = [];
-  var faces = [];
-  var t = 0.5 + Math.sqrt(5) / 2;
-  positions.push([-1, +t, 0]);
-  positions.push([+1, +t, 0]);
-  positions.push([-1, -t, 0]);
-  positions.push([+1, -t, 0]);
-  positions.push([0, -1, +t]);
-  positions.push([0, +1, +t]);
-  positions.push([0, -1, -t]);
-  positions.push([0, +1, -t]);
-  positions.push([+t, 0, -1]);
-  positions.push([+t, 0, +1]);
-  positions.push([-t, 0, -1]);
-  positions.push([-t, 0, +1]);
-  faces.push([0, 11, 5]);
-  faces.push([0, 5, 1]);
-  faces.push([0, 1, 7]);
-  faces.push([0, 7, 10]);
-  faces.push([0, 10, 11]);
-  faces.push([1, 5, 9]);
-  faces.push([5, 11, 4]);
-  faces.push([11, 10, 2]);
-  faces.push([10, 7, 6]);
-  faces.push([7, 1, 8]);
-  faces.push([3, 9, 4]);
-  faces.push([3, 4, 2]);
-  faces.push([3, 2, 6]);
-  faces.push([3, 6, 8]);
-  faces.push([3, 8, 9]);
-  faces.push([4, 9, 5]);
-  faces.push([2, 4, 11]);
-  faces.push([6, 2, 10]);
-  faces.push([8, 6, 7]);
-  faces.push([9, 8, 1]);
-  var complex = {
-    cells: faces,
-    positions: positions
-  };
+/**
+ * @typedef {object} RoundedCubeOptions
+ * @property {number} [sx=1]
+ * @property {number} [sy=sx]
+ * @property {number} [nx=1]
+ * @property {number} [ny=nx]
+ * @property {number} [radius=sx * 0.25]
+ * @property {number} [roundSegments=8]
+ * @property {number} [edgeSegments=1]
+ */ /**
+ * @alias module:roundedRectangle
+ * @param {RoundedCubeOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function roundedRectangle({ sx = 1, sy = sx, nx = 1, ny = nx, radius = sx * 0.25, roundSegments = 8, edgeSegments = 1 } = {}) {
+    checkArguments(arguments);
+    const size = (nx + 1) * (ny + 1) + (roundSegments + 1) * (roundSegments + 1) * 4 + (roundSegments + 1) * (edgeSegments + 1) * 4;
+    const geometry = {
+        positions: new Float32Array(size * 3),
+        normals: new Float32Array(size * 3),
+        uvs: new Float32Array(size * 2),
+        cells: new (getCellsTypedArray(size))((nx * ny + roundSegments * roundSegments * 4 + roundSegments * edgeSegments * 4) * 6)
+    };
+    const r2 = radius * 2;
+    const widthX = sx - r2;
+    const widthY = sy - r2;
+    const faceSX = widthX / sx;
+    const faceSY = widthY / sy;
+    const radiusSX = radius / sx;
+    const radiusSY = radius / sy;
+    const indices = {
+        vertex: 0,
+        cell: 0
+    };
+    const uvOffsetCorner = (su, sv)=>[
+            [
+                radius / (su + r2),
+                0
+            ],
+            [
+                1 - radius / (su + r2),
+                0
+            ],
+            [
+                1,
+                1 - radius / (sv + r2)
+            ],
+            [
+                0,
+                1 - radius / (sv + r2)
+            ]
+        ];
+    const uvOffsetStart = (_, sv)=>[
+            0,
+            radius / (sv + r2)
+        ];
+    const uvOffsetEnd = (su, sv)=>[
+            1 - radius / (su + r2),
+            radius / (sv + r2)
+        ];
+    const [su, sv, nu, nv, direction, pw, uvScale, uvOffset, center] = [
+        widthX,
+        widthY,
+        nx,
+        ny,
+        "z",
+        0,
+        [
+            faceSX,
+            faceSY
+        ],
+        [
+            radiusSX,
+            radiusSY
+        ],
+        (x, y)=>[
+                x,
+                y,
+                0
+            ]
+    ];
+    // Plane face
+    computePlane(geometry, indices, su, sv, nu, nv, direction, pw, false, uvScale, uvOffset);
+    // Corner order: ccw uv-like order and L/B (0) R/T (2)
+    // 0,1 -- 1,1
+    //  |  --  |
+    // 0,0 -- 1,0
+    for(let i = 0; i < 4; i++){
+        const ceil = Math.ceil(i / 2) % 2;
+        const floor = Math.floor(i / 2) % 2;
+        const x = (ceil === 0 ? -1 : 1) * (su + radius) * 0.5;
+        const y = (floor === 0 ? -1 : 1) * (sv + radius) * 0.5;
+        // Flip for quad seams to be radial
+        const flip = i % 2 === 0;
+        // Corners
+        computePlane(geometry, indices, radius, radius, roundSegments, roundSegments, flip ? "-z" : "z", pw, false, [
+            (flip ? -1 : 1) * (radius / (su + r2)),
+            radius / (sv + r2)
+        ], uvOffsetCorner(su, sv)[i], center(x, y), !flip);
+        // Edges
+        if (i === 0 || i === 2) {
+            // Left / Right
+            computePlane(geometry, indices, radius, sv, roundSegments, edgeSegments, direction, pw, false, [
+                uvOffset[0],
+                uvScale[1]
+            ], ceil === 0 ? uvOffsetStart(su, sv) : uvOffsetEnd(su, sv), center(x, 0));
+            // Bottom/Top
+            computePlane(geometry, indices, su, radius, edgeSegments, roundSegments, direction, pw, false, [
+                uvScale[0],
+                uvOffset[1]
+            ], floor === 0 ? [
+                ...uvOffsetStart(sv, su)
+            ].reverse() : [
+                ...uvOffsetEnd(sv, su)
+            ].reverse(), center(0, y));
+        }
+    }
+    const rx = widthX * 0.5;
+    const ry = widthY * 0.5;
+    for(let i = 0; i < geometry.positions.length; i += 3){
+        const position = [
+            geometry.positions[i],
+            geometry.positions[i + 1],
+            geometry.positions[i + 2]
+        ];
+        TMP[0] = position[0];
+        TMP[1] = position[1];
+        TMP[2] = position[2];
+        let needsRounding = false;
+        if (position[0] < -rx) {
+            if (position[1] < -ry) {
+                position[0] = -rx;
+                position[1] = -ry;
+                needsRounding = true;
+            } else if (position[1] > ry) {
+                position[0] = -rx;
+                position[1] = ry;
+                needsRounding = true;
+            }
+        } else if (position[0] > rx) {
+            if (position[1] < -ry) {
+                position[0] = rx;
+                position[1] = -ry;
+                needsRounding = true;
+            } else if (position[1] > ry) {
+                position[0] = rx;
+                position[1] = ry;
+                needsRounding = true;
+            }
+        }
+        TMP[0] -= position[0];
+        TMP[1] -= position[1];
+        geometry.normals[i + 2] = 1;
+        if (needsRounding) {
+            const x = Math.sqrt(TMP[0] ** 2 + TMP[1] ** 2) / Math.max(Math.abs(TMP[0]), Math.abs(TMP[1]));
+            geometry.positions[i] = position[0] + TMP[0] / x;
+            geometry.positions[i + 1] = position[1] + TMP[1] / x;
+        }
+    }
+    return geometry;
+}
 
-  while (subdivisions-- > 0) {
-    complex = subdivide(complex);
-  }
+/**
+ * @typedef {object} StadiumOptions
+ * @property {number} [sx=1]
+ * @property {number} [sy=sx]
+ * @property {number} [nx=1]
+ * @property {number} [ny=nx]
+ * @property {number} [roundSegments=8]
+ * @property {number} [edgeSegments=1]
+ */ /**
+ * @alias module:stadium
+ * @param {StadiumOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function stadium({ sx = 1, sy = 0.5, nx, ny, roundSegments, edgeSegments } = {}) {
+    checkArguments(arguments);
+    return roundedRectangle({
+        sx,
+        sy,
+        nx,
+        ny,
+        radius: Math.min(sx, sy) * 0.5,
+        roundSegments,
+        edgeSegments
+    });
+}
 
-  positions = complex.positions;
-
-  for (var i = 0; i < positions.length; i++) {
-    normalizeNd(positions[i]);
-  }
-
-  return complex;
-} // TODO: work out the second half of loop subdivision
-// and extract this into its own module.
-
-
-function subdivide(complex) {
-  var positions = complex.positions;
-  var cells = complex.cells;
-  var newCells = [];
-  var newPositions = [];
-  var midpoints = {};
-  var l = 0;
-
-  for (var i = 0; i < cells.length; i++) {
-    var cell = cells[i];
-    var c0 = cell[0];
-    var c1 = cell[1];
-    var c2 = cell[2];
-    var v0 = positions[c0];
-    var v1 = positions[c1];
-    var v2 = positions[c2];
-    var a = getMidpoint(v0, v1);
-    var b = getMidpoint(v1, v2);
-    var c = getMidpoint(v2, v0);
-    var ai = newPositions.indexOf(a);
-    if (ai === -1) ai = l++, newPositions.push(a);
-    var bi = newPositions.indexOf(b);
-    if (bi === -1) bi = l++, newPositions.push(b);
-    var ci = newPositions.indexOf(c);
-    if (ci === -1) ci = l++, newPositions.push(c);
-    var v0i = newPositions.indexOf(v0);
-    if (v0i === -1) v0i = l++, newPositions.push(v0);
-    var v1i = newPositions.indexOf(v1);
-    if (v1i === -1) v1i = l++, newPositions.push(v1);
-    var v2i = newPositions.indexOf(v2);
-    if (v2i === -1) v2i = l++, newPositions.push(v2);
-    newCells.push([v0i, ai, ci]);
-    newCells.push([v1i, bi, ai]);
-    newCells.push([v2i, ci, bi]);
-    newCells.push([ai, bi, ci]);
-  }
-
-  return {
-    cells: newCells,
-    positions: newPositions
-  }; // reuse midpoint vertices between iterations.
-  // Otherwise, there'll be duplicate vertices in the final
-  // mesh, resulting in sharp edges.
-
-  function getMidpoint(a, b) {
-    var point = midpoint(a, b);
-    var pointKey = pointToKey(point);
-    var cachedPoint = midpoints[pointKey];
-
-    if (cachedPoint) {
-      return cachedPoint;
+const safeSqrt = (x)=>Math.sqrt(Math.max(x, 0));
+const safeDivide = (x, y)=>x / (y + Number.EPSILON);
+const isNegligeable = (x)=>Math.abs(x) < Number.EPSILON * 2;
+const remapRectangular = (x, radius)=>(x / radius + 1) / 2;
+const remap = (x)=>(x + 1) / 2; // From [-1, 1] to [0, 1]
+function rectangular({ uvs, index, x, y, radius, sx = 1, sy = 1 }) {
+    uvs[index] = remapRectangular(x, radius * sx);
+    uvs[index + 1] = remapRectangular(y, radius * sy);
+}
+function polar({ uvs, index, radiusRatio, thetaRatio }) {
+    uvs[index] = radiusRatio;
+    uvs[index + 1] = thetaRatio;
+}
+// Basic
+function radial({ uvs, index, u, v, radius }) {
+    const x = safeDivide(Math.sqrt(u ** 2 + v ** 2), Math.max(Math.abs(u), Math.abs(v)));
+    uvs[index] = remap(x * u);
+    uvs[index + 1] = remap(x * v);
+}
+const FOUR_OVER_PI = 4 / Math.PI;
+function concentric({ uvs, index, u, v, radius }) {
+    const u2 = u ** 2;
+    const v2 = v ** 2;
+    const x = Math.sqrt(u2 + v2);
+    if (u2 > v2) {
+        uvs[index] = remap(x * Math.sign(u));
+        uvs[index + 1] = remap(x * (FOUR_OVER_PI * Math.atan(safeDivide(v, Math.abs(u)))));
     } else {
-      return midpoints[pointKey] = point;
+        uvs[index] = remap(x * (FOUR_OVER_PI * Math.atan(safeDivide(u, Math.abs(v)))));
+        uvs[index + 1] = remap(x * Math.sign(v));
     }
-  }
-
-  function pointToKey(point) {
-    return point[0].toPrecision(6) + ',' + point[1].toPrecision(6) + ',' + point[2].toPrecision(6);
-  }
-
-  function midpoint(a, b) {
-    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
-  }
 }
-
-var cross_1 = cross$1;
-/**
- * Computes the cross product of two vec2's
- * Note that the cross product must by definition produce a 3D vector
- *
- * @param {vec3} out the receiving vector
- * @param {vec2} a the first operand
- * @param {vec2} b the second operand
- * @returns {vec3} out
- */
-
-function cross$1(out, a, b) {
-  var z = a[0] * b[1] - a[1] * b[0];
-  out[0] = out[1] = 0;
-  out[2] = z;
-  return out;
+function lamé({ uvs, index, u, v, radius }) {
+    const u2 = u ** 2;
+    const v2 = v ** 2;
+    uvs[index] = remap(Math.sign(u) * Math.abs(u) ** (1 - u2 - v2));
+    uvs[index + 1] = remap(Math.sign(v) * Math.abs(v) ** (1 - u2 - v2));
 }
-
-var subtract_1 = subtract;
-/**
- * Subtracts vector b from vector a
- *
- * @param {vec2} out the receiving vector
- * @param {vec2} a the first operand
- * @param {vec2} b the second operand
- * @returns {vec2} out
- */
-
-function subtract(out, a, b) {
-  out[0] = a[0] - b[0];
-  out[1] = a[1] - b[1];
-  return out;
+function elliptical({ uvs, index, u, v, radius }) {
+    const t = u ** 2 - v ** 2;
+    const pu1 = 0.5 * safeSqrt(2 + t + 2 * SQRT2 * u);
+    const pu2 = 0.5 * safeSqrt(2 + t - 2 * SQRT2 * u);
+    const pv1 = 0.5 * safeSqrt(2 - t + 2 * SQRT2 * v);
+    const pv2 = 0.5 * safeSqrt(2 - t - 2 * SQRT2 * v);
+    uvs[index] = remap(pu1 - pu2);
+    uvs[index + 1] = remap(pv1 - pv2);
 }
-
-var tmpX = [0, 0, 0];
-var tmpY = [0, 0, 0];
-
-var isUvSeam = function isUVBroken(uvs, a, b, c) {
-  var uvA = uvs[a];
-  var uvB = uvs[b];
-  var uvC = uvs[c];
-  subtract_1(tmpX, uvB, uvA);
-  subtract_1(tmpY, uvC, uvA);
-  cross_1(tmpX, tmpX, tmpY);
-  return tmpX[2] < 0;
-};
-
-var MIN = 0.25;
-var MAX = 0.75;
-var fixWrappedUvs = fixWrappedUVs;
-
-function fixWrappedUVs(mesh) {
-  var positions = mesh.positions;
-  var cells = mesh.cells;
-  var uvs = mesh.uvs;
-  var newVertices = positions.slice();
-  var newUvs = uvs.slice();
-  var visited = {};
-
-  for (var i = 0; i < cells.length; i++) {
-    var cell = cells[i];
-    var a = cell[0];
-    var b = cell[1];
-    var c = cell[2];
-
-    if (!isUvSeam(uvs, a, b, c)) {
-      continue;
-    }
-
-    var p0 = positions[a];
-    var p1 = positions[b];
-    var p2 = positions[c];
-    var uv0 = uvs[a];
-    var uv1 = uvs[b];
-    var uv2 = uvs[c];
-
-    if (uv0[0] < MIN) {
-      a = revisit(visited, a, uv0, p0);
-    }
-
-    if (uv1[0] < MIN) {
-      b = revisit(visited, b, uv1, p1);
-    }
-
-    if (uv2[0] < MIN) {
-      c = revisit(visited, c, uv2, p2);
-    }
-
-    cell[0] = a;
-    cell[1] = b;
-    cell[2] = c;
-  }
-
-  fixUVEdges(cells, newUvs); // modify mesh in place with new lists
-
-  mesh.positions = newVertices;
-  mesh.uvs = newUvs;
-
-  function revisit(cache, face, uv, position) {
-    if (!(face in cache)) {
-      newVertices.push(position.slice());
-      newUvs.push(uv.slice());
-      var verticeIndex = newVertices.length - 1;
-      cache[face] = verticeIndex;
-      return verticeIndex;
+// Radial, all variations of FG squircular:
+function fixFGSingularities(uvs, index, u, v, radius) {
+    if (isNegligeable(u) || isNegligeable(v)) {
+        uvs[index] = remap(u);
+        uvs[index + 1] = remap(v);
     } else {
-      return cache[face];
+        return true;
     }
-  }
+}
+function fgSquircular({ uvs, index, u, v, radius }) {
+    const ok = fixFGSingularities(uvs, index, u, v);
+    if (ok) {
+        const u2 = u ** 2;
+        const v2 = v ** 2;
+        const sign = Math.sign(u * v);
+        const uv2Sum = u2 + v2;
+        const sqrtUV = Math.sqrt(uv2Sum - safeSqrt(uv2Sum * (uv2Sum - 4 * u2 * v2)));
+        uvs[index] = remap(sign / (v * SQRT2) * sqrtUV);
+        uvs[index + 1] = remap(sign / (u * SQRT2) * sqrtUV);
+    }
+}
+function twoSquircular({ uvs, index, u, v, radius }) {
+    const ok = fixFGSingularities(uvs, index, u, v);
+    if (ok) {
+        const sign = Math.sign(u * v);
+        const sqrtUV = Math.sqrt(1 - safeSqrt(1 - 4 * u ** 2 * v ** 2));
+        uvs[index] = remap(sign / (v * SQRT2) * sqrtUV);
+        uvs[index + 1] = remap(sign / (u * SQRT2) * sqrtUV);
+    }
+}
+function threeSquircular({ uvs, index, u, v, radius }) {
+    const ok = fixFGSingularities(uvs, index, u, v);
+    if (ok) {
+        const u2 = u ** 2;
+        const v2 = v ** 2;
+        const sign = Math.sign(u * v);
+        const sqrtUV = Math.sqrt((1 - safeSqrt(1 - 4 * u ** 4 * v2 - 4 * u2 * v ** 4)) / (2 * (u2 + v2)));
+        uvs[index] = remap(sign / v * sqrtUV);
+        uvs[index + 1] = remap(sign / u * sqrtUV);
+    }
+}
+function cornerificTapered2({ uvs, index, u, v, radius }) {
+    const ok = fixFGSingularities(uvs, index, u, v);
+    if (ok) {
+        const u2 = u ** 2;
+        const v2 = v ** 2;
+        const sign = Math.sign(u * v);
+        const uv2Sum = u2 + v2;
+        const sqrtUV = Math.sqrt((uv2Sum - Math.sqrt(uv2Sum * (uv2Sum - 4 * u2 * v2 * (2 - u2 - v2)))) / (2 * (2 - u2 - v2)));
+        uvs[index] = remap(sign / v * sqrtUV);
+        uvs[index + 1] = remap(sign / u * sqrtUV);
+    }
+}
+function tapered4({ uvs, index, u, v, radius }) {
+    const ok = fixFGSingularities(uvs, index, u, v);
+    if (ok) {
+        const u2 = u ** 2;
+        const v2 = v ** 2;
+        const sign = Math.sign(u * v);
+        const uv2Sum = u2 + v2;
+        const divider = 3 - u ** 4 - 2 * u2 * v2 - v ** 4;
+        const sqrtUV = Math.sqrt((uv2Sum - safeSqrt(uv2Sum * (uv2Sum - 2 * u2 * v2 * divider))) / divider);
+        uvs[index] = remap(sign / v * sqrtUV);
+        uvs[index + 1] = remap(sign / u * sqrtUV);
+    }
+}
+// Non-axial
+const FOURTH_SQRT2 = 2 ** (1 / 4);
+function nonAxial2Pinch({ uvs, index, u, v, radius }) {
+    const u2 = u ** 2;
+    const v2 = v ** 2;
+    const sign = Math.sign(u * v);
+    const uv2Sum = u2 + v2;
+    const sqrtUV = (uv2Sum - 2 * u2 * v2 - safeSqrt((uv2Sum - 4 * u2 * v2) * uv2Sum)) ** (1 / 4);
+    if (isNegligeable(v)) {
+        uvs[index] = remap(Math.sign(u) * Math.sqrt(Math.abs(u)));
+        uvs[index + 1] = remap(safeDivide(sign, u * FOURTH_SQRT2) * sqrtUV);
+    } else {
+        uvs[index] = remap(safeDivide(sign, v * FOURTH_SQRT2) * sqrtUV);
+        uvs[index + 1] = remap(isNegligeable(u) ? Math.sign(v) * Math.sqrt(Math.abs(v)) : safeDivide(sign, u * FOURTH_SQRT2) * sqrtUV);
+    }
+}
+function nonAxialHalfPinch({ uvs, index, u, v, radius }) {
+    const u2 = u ** 2;
+    const v2 = v ** 2;
+    const sign = Math.sign(u * v);
+    const uv2Sum = u2 + v2;
+    const sqrtUV = Math.sqrt(safeDivide(1 - safeSqrt(1 - 4 * u2 * v2 * uv2Sum ** 2), 2 * uv2Sum));
+    if (isNegligeable(v)) {
+        uvs[index] = remap(Math.sign(u) * u2);
+        uvs[index + 1] = remap(safeDivide(sign, u) * sqrtUV);
+    } else {
+        uvs[index] = remap(safeDivide(sign, v) * sqrtUV);
+        uvs[index + 1] = remap(isNegligeable(u) ? Math.sign(v) * v2 : safeDivide(sign, u) * sqrtUV);
+    }
+}
+// Variations of elliptical
+function squelched({ uvs, index, u, v, radius, t }) {
+    uvs[index] = [
+        HALF_PI,
+        TAU - HALF_PI
+    ].includes(t) ? 0.5 : remap(u / Math.sqrt(1 - v ** 2));
+    uvs[index + 1] = [
+        0,
+        TAU,
+        Math.PI
+    ].includes(t) ? 0.5 : remap(v / Math.sqrt(1 - u ** 2));
+}
+function squelchedVertical({ uvs, index, u, v, radius, t }) {
+    uvs[index] = remap(u);
+    uvs[index + 1] = [
+        0,
+        TAU,
+        Math.PI
+    ].includes(t) ? 0.5 : remap(v / Math.sqrt(1 - u ** 2));
+}
+function squelchedHorizontal({ uvs, index, u, v, radius, t }) {
+    uvs[index] = [
+        HALF_PI,
+        TAU - HALF_PI
+    ].includes(t) ? 0.5 : remap(u / Math.sqrt(1 - v ** 2));
+    uvs[index + 1] = remap(v);
 }
 
-function fixUVEdges(cells, uvs) {
-  for (var i = 0; i < cells.length; i++) {
-    var cell = cells[i];
-    var uv0 = uvs[cell[0]];
-    var uv1 = uvs[cell[1]];
-    var uv2 = uvs[cell[2]];
-    var max = Math.max(uv0[0], uv1[0], uv2[0]);
-    var min = Math.min(uv0[0], uv1[0], uv2[0]);
+var mappings = /*#__PURE__*/Object.freeze({
+  __proto__: null,
+  concentric: concentric,
+  cornerificTapered2: cornerificTapered2,
+  elliptical: elliptical,
+  fgSquircular: fgSquircular,
+  lamé: lamé,
+  nonAxial2Pinch: nonAxial2Pinch,
+  nonAxialHalfPinch: nonAxialHalfPinch,
+  polar: polar,
+  radial: radial,
+  rectangular: rectangular,
+  squelched: squelched,
+  squelchedHorizontal: squelchedHorizontal,
+  squelchedVertical: squelchedVertical,
+  tapered4: tapered4,
+  threeSquircular: threeSquircular,
+  twoSquircular: twoSquircular
+});
 
-    if (max > MAX && min < MIN) {
-      if (uv0[0] < MIN) uv0[0] += 1;
-      if (uv1[0] < MIN) uv1[0] += 1;
-      if (uv2[0] < MIN) uv2[0] += 1;
-    }
-  }
-}
-
-var fixPoleUvs = fixPoleUVs;
-
-function fixPoleUVs(mesh) {
-  var positions = mesh.positions;
-  var cells = mesh.cells;
-  var uvs = mesh.uvs;
-  var northIndex = firstYIndex(positions, 1);
-  var southIndex = firstYIndex(positions, -1);
-
-  if (northIndex === -1 || southIndex === -1) {
-    // could not find any poles, bail early
-    return;
-  }
-
-  var newVertices = positions.slice();
-  var newUvs = uvs.slice();
-  var verticeIndex = newVertices.length - 1;
-
-  for (var i = 0; i < cells.length; i++) {
-    var cell = cells[i];
-    var a = cell[0];
-    var b = cell[1];
-    var c = cell[2];
-
-    if (a === northIndex) {
-      visit(cell, northIndex, b, c);
-    } else if (a === southIndex) {
-      visit(cell, southIndex, b, c);
-    }
-  }
-
-  mesh.positions = newVertices;
-  mesh.uvs = newUvs;
-
-  function visit(cell, poleIndex, b, c) {
-    var uv1 = uvs[b];
-    var uv2 = uvs[c];
-    uvs[poleIndex][0] = (uv1[0] + uv2[0]) / 2;
-    verticeIndex++;
-    newVertices.push(positions[poleIndex].slice());
-    newUvs.push(uvs[poleIndex].slice());
-    cell[0] = verticeIndex;
-  }
-}
-
-function firstYIndex(list, value) {
-  for (var i = 0; i < list.length; i++) {
-    var vec = list[i];
-
-    if (Math.abs(vec[1] - value) <= 1e-4) {
-      return i;
-    }
-  }
-
-  return -1;
-}
-
-var primitiveIcosphere = function primitiveIcosphere(radius, opt) {
-  opt = opt || {};
-  radius = typeof radius !== 'undefined' ? radius : 1;
-  var subdivisions = typeof opt.subdivisions !== 'undefined' ? opt.subdivisions : 2;
-  var complex = icosphere_1(subdivisions);
-  var normals = [];
-  var uvs = [];
-  var i, position;
-
-  for (i = 0; i < complex.positions.length; i++) {
-    position = complex.positions[i]; // get UV from unit icosphere
-
-    var u = 0.5 * (-(Math.atan2(position[2], -position[0]) / Math.PI) + 1.0);
-    var v = 0.5 + Math.asin(position[1]) / Math.PI;
-    uvs.push([1 - u, 1 - v]);
-  }
-
-  var mesh = {
-    positions: complex.positions,
-    cells: complex.cells,
-    uvs: uvs,
-    normals: normals
-  }; // attempt to fix some of the glaring seam issues
-
-  fixPoleUvs(mesh);
-  fixWrappedUvs(mesh); // now determine normals
-
-  for (i = 0; i < mesh.positions.length; i++) {
-    position = mesh.positions[i]; // get normal
-
-    var normal = normalize_1([0, 0, 0], position);
-    normals.push(normal); // and scale sphere to radius
-
-    scale_1(position, position, radius);
-  }
-
-  return mesh;
-};
-
-const {
-  vec3
-} = esm;
-const tmp = [0, 0, 0];
-
-function createEllipsoid(radius = 1, options) {
-  // Default to an oblate spheroid
-  const {
-    latSegments = 32,
-    lngSegments = 64,
-    rx = 2,
-    ry = 1,
-    rz = 1
-  } = { ...options
-  };
-  const cells = [];
-  const positions = [];
-  const normals = [];
-  const uvs = [];
-
-  for (let latSteps = 0; latSteps <= latSegments; latSteps++) {
-    const normalizedZ = latSteps / latSegments;
-    const theta = normalizedZ * Math.PI;
-    const sinTheta = Math.sin(theta);
-    const cosTheta = Math.cos(theta);
-
-    for (let lngSteps = 0; lngSteps <= lngSegments; lngSteps++) {
-      const normalizedY = lngSteps / lngSegments;
-      const phi = normalizedY * Math.PI * 2;
-      const sinPhi = Math.sin(phi);
-      const cosPhi = Math.cos(phi);
-      const x = rx * cosPhi * sinTheta;
-      const y = ry * cosTheta;
-      const z = -rz * sinPhi * sinTheta;
-      vec3.set(tmp, x, y, z);
-      vec3.scale(tmp, tmp, -radius);
-      positions.push([...tmp]);
-      vec3.normalize(tmp, tmp);
-      normals.push([...tmp]);
-      uvs.push([normalizedY, normalizedZ]);
-    }
-
-    if (latSteps > 0) {
-      const verticesCount = positions.length;
-
-      for (let firstIndex = verticesCount - 2 * (lngSegments + 1); firstIndex + lngSegments + 2 < verticesCount; firstIndex++) {
-        cells.push([firstIndex + 0, firstIndex + 1, firstIndex + lngSegments + 1]);
-        cells.push([firstIndex + lngSegments + 1, firstIndex + 1, firstIndex + lngSegments + 2]);
-      }
-    }
-  }
-
-  return {
-    cells,
-    positions,
-    normals,
-    uvs
-  };
-}
-
-var primitiveEllipsoid = createEllipsoid;
-
-var defined = function () {
-  for (var i = 0; i < arguments.length; i++) {
-    if (arguments[i] !== undefined) return arguments[i];
-  }
-};
-
-var subtract_1$1 = subtract$1;
 /**
- * Subtracts vector b from vector a
+ * @typedef {object} EllipseOptions
+ * @property {number} [sx=1]
+ * @property {number} [sy=0.5]
+ * @property {number} [radius=0.5]
+ * @property {number} [segments=32]
+ * @property {number} [innerSegments=16]
+ * @property {number} [theta=TAU]
+ * @property {number} [thetaOffset=0]
+ * @property {boolean} [mergeCentroid=true]
+ * @property {Function} [mapping=mappings.elliptical]
+ */ /**
+ * @alias module:ellipse
+ * @param {EllipseOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function ellipse({ sx = 1, sy = 0.5, radius = 0.5, segments = 32, innerSegments = 16, theta = TAU, thetaOffset = 0, innerRadius = 0, mergeCentroid = true, mapping = elliptical, equation = ({ rx, ry, cosTheta, sinTheta })=>[
+        rx * cosTheta,
+        ry * sinTheta
+    ] } = {}) {
+    checkArguments(arguments);
+    const size = mergeCentroid ? 1 + (segments + 1) + (innerSegments - 1) * (segments + 1) : (segments + 1) * (innerSegments + 1);
+    const positions = new Float32Array(size * 3);
+    const normals = new Float32Array(size * 3);
+    const uvs = new Float32Array(size * 2);
+    const cells = new (getCellsTypedArray(size))(mergeCentroid ? segments * 3 + (innerSegments - 1) * segments * 6 : size * 6);
+    if (mergeCentroid) {
+        normals[2] = 1;
+        uvs[0] = 0.5;
+        uvs[1] = 0.5;
+    }
+    let vertexIndex = mergeCentroid ? 1 : 0;
+    let cellIndex = 0;
+    for(let j = vertexIndex; j <= innerSegments; j++){
+        const radiusRatio = j / innerSegments;
+        const r = innerRadius + (radius - innerRadius) * radiusRatio;
+        for(let i = 0; i <= segments; i++, vertexIndex++){
+            const thetaRatio = i / segments;
+            const t = thetaOffset + thetaRatio * theta;
+            const cosTheta = Math.cos(t);
+            const sinTheta = Math.sin(t);
+            const [x, y] = equation({
+                rx: sx * r,
+                ry: sy * r,
+                cosTheta,
+                sinTheta,
+                s: radiusRatio,
+                t
+            });
+            positions[vertexIndex * 3] = x;
+            positions[vertexIndex * 3 + 1] = y;
+            normals[vertexIndex * 3 + 2] = 1;
+            mapping({
+                uvs,
+                index: vertexIndex * 2,
+                u: radiusRatio * cosTheta,
+                v: radiusRatio * sinTheta,
+                radius,
+                radiusRatio,
+                thetaRatio,
+                t,
+                // For rectangular
+                x,
+                y,
+                sx,
+                sy
+            });
+            if (i < segments) {
+                if (mergeCentroid && j === 1) {
+                    cells[cellIndex] = i + 1;
+                    cells[cellIndex + 1] = i + 2;
+                    cellIndex += 3;
+                } else {
+                    let a;
+                    if (mergeCentroid) {
+                        a = 1 + (j - 2) * (segments + 1) + i;
+                    } else if (j < innerSegments) {
+                        a = j * (segments + 1) + i;
+                    }
+                    if (a !== undefined) {
+                        const b = a + segments + 1;
+                        const c = a + segments + 2;
+                        const d = a + 1;
+                        cells[cellIndex] = a;
+                        cells[cellIndex + 1] = b;
+                        cells[cellIndex + 2] = d;
+                        cells[cellIndex + 3] = b;
+                        cells[cellIndex + 4] = c;
+                        cells[cellIndex + 5] = d;
+                        cellIndex += 6;
+                    }
+                }
+            }
+        }
+    }
+    return {
+        positions,
+        normals,
+        uvs,
+        cells
+    };
+}
+
+/**
+ * @typedef {object} DiscOptions
+ * @property {number} [radius=0.5]
+ * @property {number} [segments=32]
+ * @property {number} [innerSegments=16]
+ * @property {number} [theta=TAU]
+ * @property {number} [thetaOffset=0]
+ * @property {boolean} [mergeCentroid=true]
+ * @property {Function} [mapping=mappings.concentric]
+ */ /**
+ * @alias module:disc
+ * @param {DiscOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function disc({ radius = 0.5, segments = 32, innerSegments = 16, theta = TAU, thetaOffset = 0, mergeCentroid = true, mapping = concentric } = {}) {
+    checkArguments(arguments);
+    return ellipse({
+        sx: 1,
+        sy: 1,
+        radius,
+        segments,
+        innerSegments,
+        theta,
+        thetaOffset,
+        mergeCentroid,
+        mapping
+    });
+}
+
+/**
+ * @typedef {object} SuperellipseOptions
+ * @property {number} [sx=1]
+ * @property {number} [sy=0.5]
+ * @property {number} [radius=0.5]
+ * @property {number} [segments=32]
+ * @property {number} [innerSegments=16]
+ * @property {number} [theta=TAU]
+ * @property {number} [thetaOffset=0]
+ * @property {boolean} [mergeCentroid=true]
+ * @property {Function} [mapping=mappings.lamé]
+ * @property {number} [m=2]
+ * @property {number} [n=m]
+ */ /**
+ * Lamé curve
+ * See elliptical-mapping example for a few special cases
+ * @see [Wolfram MathWorld – Superellipse]{@link https://mathworld.wolfram.com/Superellipse.html}
+ * @see [Wikipedia – Superellipse]{@link https://en.wikipedia.org/wiki/Superellipse}
+ * @alias module:superellipse
+ * @param {SuperellipseOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function superellipse({ sx = 1, sy = 0.5, radius = 0.5, segments = 32, innerSegments = 16, theta = TAU, thetaOffset = 0, mergeCentroid = true, mapping = lamé, m = 2, n = m } = {}) {
+    checkArguments(arguments);
+    return ellipse({
+        sx,
+        sy,
+        radius,
+        segments,
+        innerSegments,
+        theta,
+        thetaOffset,
+        mergeCentroid,
+        mapping,
+        equation: ({ rx, ry, cosTheta, sinTheta })=>[
+                rx * Math.abs(cosTheta) ** (2 / m) * Math.sign(cosTheta),
+                ry * Math.abs(sinTheta) ** (2 / n) * Math.sign(sinTheta)
+            ]
+    });
+}
+
+/**
+ * @typedef {object} SquircleOptions
+ * @property {number} [sx=1]
+ * @property {number} [sy=1]
+ * @property {number} [radius=0.5]
+ * @property {number} [segments=128]
+ * @property {number} [innerSegments=16]
+ * @property {number} [theta=TAU]
+ * @property {number} [thetaOffset=0]
+ * @property {boolean} [mergeCentroid=true]
+ * @property {Function} [mapping=mappings.fgSquircular]
+ * @property {number} [squareness=0.95] Squareness (0 < s <= 1)
+ */ /**
+ * Fernández-Guasti squircle
+ * @see [Squircular Calculations – Chamberlain Fong]{@link https://arxiv.org/vc/arxiv/papers/1604/1604.02174v1.pdf}
  *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the first operand
- * @param {vec3} b the second operand
- * @returns {vec3} out
- */
-
-function subtract$1(out, a, b) {
-  out[0] = a[0] - b[0];
-  out[1] = a[1] - b[1];
-  out[2] = a[2] - b[2];
-  return out;
+ * @alias module:squircle
+ * @param {SquircleOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function squircle({ sx = 1, sy = 1, radius = 0.5, segments = 128, innerSegments = 16, theta = TAU, thetaOffset = 0, mergeCentroid = true, mapping = fgSquircular, squareness = 0.95 } = {}) {
+    checkArguments(arguments);
+    return ellipse({
+        sx,
+        sy,
+        radius,
+        segments,
+        innerSegments,
+        theta,
+        thetaOffset,
+        mergeCentroid,
+        mapping,
+        equation: ({ rx, ry, cosTheta, sinTheta, t })=>{
+            // Fix singularities
+            // https://codereview.stackexchange.com/questions/233496/handling-singularities-in-squircle-parametric-equations
+            if (t === 0 || t === TAU) {
+                return [
+                    rx,
+                    0
+                ];
+            } else if (t === HALF_PI) {
+                return [
+                    0,
+                    ry
+                ];
+            } else if (t === Math.PI) {
+                return [
+                    -rx,
+                    0
+                ];
+            } else if (t === TAU - HALF_PI) {
+                return [
+                    0,
+                    -ry
+                ];
+            } else {
+                const sqrt = Math.sqrt(1 - Math.sqrt(1 - squareness ** 2 * Math.sin(2 * t) ** 2));
+                return [
+                    rx * Math.sign(cosTheta) / (squareness * SQRT2 * Math.abs(sinTheta)) * sqrt,
+                    ry * Math.sign(sinTheta) / (squareness * SQRT2 * Math.abs(cosTheta)) * sqrt
+                ];
+            }
+        }
+    });
 }
 
-var primitiveTorus = createTorusMesh;
-
-function createTorusMesh(opt) {
-  opt = opt || {};
-  var majorRadius = defined(opt.majorRadius, 1);
-  var minorRadius = defined(opt.minorRadius, 0.25);
-  var minorSegments = defined(opt.minorSegments, 32);
-  var majorSegments = defined(opt.majorSegments, 64);
-  var arc = defined(opt.arc, Math.PI * 2);
-  var PI2 = Math.PI * 2;
-  var center = [0, 0, 0];
-  var uvs = [];
-  var positions = [];
-  var cells = [];
-  var tmp = [0, 0, 0];
-  var normals = [];
-
-  for (var j = 0; j <= minorSegments; j++) {
-    for (var i = 0; i <= majorSegments; i++) {
-      var u = i / majorSegments * arc;
-      var v = j / minorSegments * PI2;
-      center[0] = majorRadius * Math.cos(u);
-      center[1] = majorRadius * Math.sin(u);
-      var vertex = [(majorRadius + minorRadius * Math.cos(v)) * Math.cos(u), (majorRadius + minorRadius * Math.cos(v)) * Math.sin(u), minorRadius * Math.sin(v)];
-      positions.push(vertex);
-      subtract_1$1(tmp, vertex, center);
-      normalize_1(tmp, tmp);
-      normals.push(tmp.slice());
-      uvs.push([i / majorSegments, j / minorSegments]);
-    }
-  }
-
-  for (var j = 1; j <= minorSegments; j++) {
-    for (var i = 1; i <= majorSegments; i++) {
-      var a = (majorSegments + 1) * j + i - 1;
-      var b = (majorSegments + 1) * (j - 1) + i - 1;
-      var c = (majorSegments + 1) * (j - 1) + i;
-      var d = (majorSegments + 1) * j + i;
-      cells.push([a, b, d]);
-      cells.push([b, c, d]);
-    }
-  }
-
-  return {
-    uvs: uvs,
-    cells: cells,
-    normals: normals,
-    positions: positions
-  };
+/**
+ * @typedef {object} AnnulusOptions
+ * @property {number} [sx=1]
+ * @property {number} [sy=1]
+ * @property {number} [radius=0.5]
+ * @property {number} [segments=32]
+ * @property {number} [innerSegments=16]
+ * @property {number} [theta=TAU]
+ * @property {number} [thetaOffset=0]
+ * @property {number} [innerRadius=radius * 0.5]
+ * @property {Function} [mapping=mappings.concentric]
+ */ /**
+ * @alias module:annulus
+ * @param {AnnulusOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function annulus({ sx = 1, sy = 1, radius = 0.5, segments = 32, innerSegments = 16, theta = TAU, thetaOffset = 0, innerRadius = radius * 0.5, mapping = concentric } = {}) {
+    checkArguments(arguments);
+    return ellipse({
+        sx,
+        sy,
+        radius,
+        segments,
+        innerSegments,
+        theta,
+        thetaOffset,
+        innerRadius,
+        mergeCentroid: false,
+        mapping
+    });
 }
 
-function createCylinderMesh(radiusTop, radiusBottom, height, radialSegments, heightSegments) {
-  var index = 0;
-  var indexOffset = 0;
-  var indexArray = [];
-  radiusTop = typeof radiusTop !== 'undefined' ? radiusTop : 1;
-  radiusBottom = typeof radiusBottom !== 'undefined' ? radiusBottom : 1;
-  height = typeof height !== 'undefined' ? height : 5;
-  radialSegments = typeof radialSegments !== 'undefined' ? radialSegments : 64;
-  heightSegments = typeof heightSegments !== 'undefined' ? heightSegments : 8;
-  var capCount = 0;
-
-  if (radiusTop > 0) {
-    capCount++;
-  }
-
-  if (radiusBottom > 0) {
-    capCount++;
-  }
-
-  var vertexCount = (radialSegments + 1) * (heightSegments + 1) + (radialSegments + 2) * capCount;
-  var cellCount = radialSegments * heightSegments * 2 + radialSegments * capCount;
-  var normals = new Array(vertexCount);
-  var vertices = new Array(vertexCount);
-  var uvs = new Array(vertexCount);
-  var cells = new Array(cellCount);
-  var slope = (radiusBottom - radiusTop) / height;
-  var thetaLength = 2.0 * Math.PI;
-
-  for (var y = 0; y <= heightSegments; y++) {
-    var indexRow = [];
-    var v = y / heightSegments;
-    var radius = v * (radiusBottom - radiusTop) + radiusTop;
-
-    for (var x = 0; x <= radialSegments; x++) {
-      var u = x / radialSegments;
-      var theta = u * thetaLength;
-      var sinTheta = Math.sin(theta);
-      var cosTheta = Math.cos(theta);
-      vertices[index] = [radius * sinTheta, -v * height + height / 2, radius * cosTheta];
-      normals[index] = [sinTheta, slope, cosTheta];
-      uvs[index] = [u, 1 - v];
-      indexRow.push(index);
-      index++;
-    }
-
-    indexArray.push(indexRow);
-  }
-
-  for (var x = 0; x < radialSegments; x++) {
-    for (var y = 0; y < heightSegments; y++) {
-      var i1 = indexArray[y][x];
-      var i2 = indexArray[y + 1][x];
-      var i3 = indexArray[y + 1][x + 1];
-      var i4 = indexArray[y][x + 1]; // face one
-
-      cells[indexOffset] = [i1, i2, i4];
-      indexOffset++; // face two
-
-      cells[indexOffset] = [i2, i3, i4];
-      indexOffset++;
-    }
-  }
-
-  var generateCap = function (top) {
-    var vertex = new Array(3).fill(0);
-    var radius = top === true ? radiusTop : radiusBottom;
-    var sign = top === true ? 1 : -1;
-    var centerIndexStart = index;
-
-    for (var x = 1; x <= radialSegments; x++) {
-      vertices[index] = [0, height * sign / 2, 0];
-      normals[index] = [0, sign, 0];
-      uvs[index] = [0.5, 0.5];
-      index++;
-    }
-
-    var centerIndexEnd = index;
-
-    for (var x = 0; x <= radialSegments; x++) {
-      var u = x / radialSegments;
-      var theta = u * thetaLength;
-      var cosTheta = Math.cos(theta);
-      var sinTheta = Math.sin(theta);
-      vertices[index] = [radius * sinTheta, height * sign / 2, radius * cosTheta];
-      normals[index] = [0, sign, 0];
-      uvs[index] = [cosTheta * 0.5 + 0.5, sinTheta * 0.5 * sign + 0.5];
-      index++;
-    }
-
-    for (var x = 0; x < radialSegments; x++) {
-      var c = centerIndexStart + x;
-      var i = centerIndexEnd + x;
-
-      if (top === true) {
-        // face top
-        cells[indexOffset] = [i, i + 1, c];
-        indexOffset++;
-      } else {
-        // face bottom
-        cells[indexOffset] = [i + 1, i, c];
-        indexOffset++;
-      }
-    }
-  };
-
-  if (radiusTop > 0) {
-    generateCap(true);
-  }
-
-  if (radiusBottom > 0) {
-    generateCap(false);
-  }
-
-  return {
-    uvs: uvs,
-    cells: cells,
-    normals: normals,
-    positions: vertices
-  };
+/**
+ * @typedef {object} ReuleuxOptions
+ * @property {number} [radius=0.5]
+ * @property {number} [segments=32]
+ * @property {number} [innerSegments=16]
+ * @property {number} [theta=TAU]
+ * @property {number} [thetaOffset=0]
+ * @property {boolean} [mergeCentroid=true]
+ * @property {Function} [mapping=mappings.concentric]
+ * @property {number} [n=3]
+ */ /**
+ * @see [Parametric equations for regular and Reuleaux polygons]{@link https://tpfto.wordpress.com/2011/09/15/parametric-equations-for-regular-and-reuleaux-polygons/}
+ *
+ * @alias module:reuleux
+ * @param {ReuleuxOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function reuleux({ radius = 0.5, segments = 32, innerSegments = 16, theta = TAU, thetaOffset = 0, mergeCentroid = true, mapping = concentric, n = 3 } = {}) {
+    checkArguments(arguments);
+    const cosN = 2 * Math.cos(Math.PI / (2 * n));
+    const PIoverN = Math.PI / n;
+    return ellipse({
+        sx: 1,
+        sy: 1,
+        radius,
+        segments,
+        innerSegments,
+        theta,
+        thetaOffset,
+        mergeCentroid,
+        mapping,
+        equation: ({ rx, ry, t })=>[
+                rx * (cosN * Math.cos(0.5 * (t + PIoverN * (2 * Math.floor(n * t / TAU) + 1))) - Math.cos(PIoverN * (2 * Math.floor(n * t / TAU) + 1))),
+                ry * (cosN * Math.sin(0.5 * (t + PIoverN * (2 * Math.floor(n * t / TAU) + 1))) - Math.sin(PIoverN * (2 * Math.floor(n * t / TAU) + 1)))
+            ]
+    });
 }
 
-var primitiveCylinder = createCylinderMesh;
-
-function createBox(sx, sy, sz) {
-  if (sx === undefined) sx = 1.0;
-  if (sy === undefined) sy = sx;
-  if (sz === undefined) sz = sx;
-  var x = sx / 2;
-  var y = sy / 2;
-  var z = sz / 2;
-  var positions = [//+z
-  [-x, y, z], [-x, -y, z], [x, -y, z], [x, y, z], //-z
-  [x, y, -z], [x, -y, -z], [-x, -y, -z], [-x, y, -z]];
-  var cells = [[0, 1, 2, 3], //+z
-  [3, 2, 5, 4], //+x
-  [4, 5, 6, 7], //-z
-  [7, 6, 1, 0], //-x
-  [7, 0, 3, 4], //+y
-  [1, 6, 5, 2] //-y
-  ];
-  return {
-    positions: positions,
-    cells: cells
-  };
+/**
+ * @typedef {object} CubeOptions
+ * @property {number} [sx=1]
+ * @property {number} [sy=sx]
+ * @property {number} [sz=sx]
+ * @property {number} [nx=1]
+ * @property {number} [ny=nx]
+ * @property {number} [nz=nx]
+ */ /**
+ * @alias module:cube
+ * @param {CubeOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function cube({ sx = 1, sy = sx, sz = sx, nx = 1, ny = nx, nz = nx } = {}) {
+    checkArguments(arguments);
+    const size = (nx + 1) * (ny + 1) * 2 + (nx + 1) * (nz + 1) * 2 + (nz + 1) * (ny + 1) * 2;
+    const geometry = {
+        positions: new Float32Array(size * 3),
+        normals: new Float32Array(size * 3),
+        uvs: new Float32Array(size * 2),
+        cells: new (getCellsTypedArray(size))((nx * ny * 2 + nx * nz * 2 + nz * ny * 2) * 6)
+    };
+    const halfSX = sx * 0.5;
+    const halfSY = sy * 0.5;
+    const halfSZ = sz * 0.5;
+    const indices = {
+        vertex: 0,
+        cell: 0
+    };
+    computePlane(geometry, indices, sx, sy, nx, ny, "z", halfSZ);
+    computePlane(geometry, indices, sx, sy, nx, ny, "-z", -halfSZ);
+    computePlane(geometry, indices, sz, sy, nz, ny, "-x", -halfSX);
+    computePlane(geometry, indices, sz, sy, nz, ny, "x", halfSX);
+    computePlane(geometry, indices, sx, sz, nx, nz, "y", halfSY);
+    computePlane(geometry, indices, sx, sz, nx, nz, "-y", -halfSY);
+    return geometry;
 }
 
-var primitiveBox = createBox;
-
-function primitiveCircle(r, segments) {
-  r = typeof r !== 'undefined' ? r : 1;
-  segments = typeof segments !== 'undefined' ? segments : 32;
-  const positions = [];
-  const cells = [];
-
-  for (let i = 0; i < segments; i++) {
-    const x = Math.cos(i / segments * Math.PI * 2);
-    const y = Math.sin(i / segments * Math.PI * 2);
-    positions.push([r * x, r * y]);
-
-    if (i > 0) {
-      cells.push([i - 1, i]);
+/**
+ * @typedef {object} RoundedCubeOptions
+ * @property {number} [sx=1]
+ * @property {number} [sy=sx]
+ * @property {number} [sz=sx]
+ * @property {number} [nx=1]
+ * @property {number} [ny=nx]
+ * @property {number} [nz=nx]
+ * @property {number} [radius=sx * 0.25]
+ * @property {number} [roundSegments=8]
+ * @property {number} [edgeSegments=1]
+ */ /**
+ * @alias module:roundedCube
+ * @param {RoundedCubeOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function roundedCube({ sx = 1, sy = sx, sz = sx, nx = 1, ny = nx, nz = nx, radius = sx * 0.25, roundSegments = 8, edgeSegments = 1 } = {}) {
+    checkArguments(arguments);
+    const size = (nx + 1) * (ny + 1) * 2 + (nx + 1) * (nz + 1) * 2 + (nz + 1) * (ny + 1) * 2 + (roundSegments + 1) * (roundSegments + 1) * 24 + (roundSegments + 1) * (edgeSegments + 1) * 24;
+    const geometry = {
+        positions: new Float32Array(size * 3),
+        normals: new Float32Array(size * 3),
+        uvs: new Float32Array(size * 2),
+        cells: new (getCellsTypedArray(size))((nx * ny * 2 + nx * nz * 2 + nz * ny * 2 + roundSegments * roundSegments * 24 + roundSegments * edgeSegments * 24) * 6)
+    };
+    const halfSX = sx * 0.5;
+    const halfSY = sy * 0.5;
+    const halfSZ = sz * 0.5;
+    const r2 = radius * 2;
+    const widthX = sx - r2;
+    const widthY = sy - r2;
+    const widthZ = sz - r2;
+    const faceSX = widthX / sx;
+    const faceSY = widthY / sy;
+    const faceSZ = widthZ / sz;
+    const radiusSX = radius / sx;
+    const radiusSY = radius / sy;
+    const radiusSZ = radius / sz;
+    const indices = {
+        vertex: 0,
+        cell: 0
+    };
+    const PLANES = [
+        [
+            widthX,
+            widthY,
+            nx,
+            ny,
+            "z",
+            halfSZ,
+            [
+                faceSX,
+                faceSY
+            ],
+            [
+                radiusSX,
+                radiusSY
+            ],
+            (x, y)=>[
+                    x,
+                    y,
+                    0
+                ]
+        ],
+        [
+            widthX,
+            widthY,
+            nx,
+            ny,
+            "-z",
+            -halfSZ,
+            [
+                faceSX,
+                faceSY
+            ],
+            [
+                radiusSX,
+                radiusSY
+            ],
+            (x, y)=>[
+                    -x,
+                    y,
+                    0
+                ]
+        ],
+        [
+            widthZ,
+            widthY,
+            nz,
+            ny,
+            "-x",
+            -halfSX,
+            [
+                faceSZ,
+                faceSY
+            ],
+            [
+                radiusSZ,
+                radiusSY
+            ],
+            (x, y)=>[
+                    0,
+                    y,
+                    x
+                ]
+        ],
+        [
+            widthZ,
+            widthY,
+            nz,
+            ny,
+            "x",
+            halfSX,
+            [
+                faceSZ,
+                faceSY
+            ],
+            [
+                radiusSZ,
+                radiusSY
+            ],
+            (x, y)=>[
+                    0,
+                    y,
+                    -x
+                ]
+        ],
+        [
+            widthX,
+            widthZ,
+            nx,
+            nz,
+            "y",
+            halfSY,
+            [
+                faceSX,
+                faceSZ
+            ],
+            [
+                radiusSX,
+                radiusSZ
+            ],
+            (x, y)=>[
+                    x,
+                    0,
+                    -y
+                ]
+        ],
+        [
+            widthX,
+            widthZ,
+            nx,
+            nz,
+            "-y",
+            -halfSY,
+            [
+                faceSX,
+                faceSZ
+            ],
+            [
+                radiusSX,
+                radiusSZ
+            ],
+            (x, y)=>[
+                    x,
+                    0,
+                    y
+                ]
+        ]
+    ];
+    const uvOffsetCorner = (su, sv)=>[
+            [
+                0,
+                0
+            ],
+            [
+                1 - radius / (su + r2),
+                0
+            ],
+            [
+                1 - radius / (su + r2),
+                1 - radius / (sv + r2)
+            ],
+            [
+                0,
+                1 - radius / (sv + r2)
+            ]
+        ];
+    const uvOffsetStart = (_, sv)=>[
+            0,
+            radius / (sv + r2)
+        ];
+    const uvOffsetEnd = (su, sv)=>[
+            1 - radius / (su + r2),
+            radius / (sv + r2)
+        ];
+    for(let j = 0; j < PLANES.length; j++){
+        const [su, sv, nu, nv, direction, pw, uvScale, uvOffset, center] = PLANES[j];
+        // Cube faces
+        computePlane(geometry, indices, su, sv, nu, nv, direction, pw, false, uvScale, uvOffset);
+        // Corner order: ccw uv-like order and L/B (0) R/T (2)
+        // 0,1 -- 1,1
+        //  |  --  |
+        // 0,0 -- 1,0
+        for(let i = 0; i < 4; i++){
+            const ceil = Math.ceil(i / 2) % 2;
+            const floor = Math.floor(i / 2) % 2;
+            const x = (ceil === 0 ? -1 : 1) * (su + radius) * 0.5;
+            const y = (floor === 0 ? -1 : 1) * (sv + radius) * 0.5;
+            // Corners
+            computePlane(geometry, indices, radius, radius, roundSegments, roundSegments, direction, pw, false, [
+                radius / (su + r2),
+                radius / (sv + r2)
+            ], uvOffsetCorner(su, sv)[i], center(x, y));
+            // Edges
+            if (i === 0 || i === 2) {
+                // Left / Right
+                computePlane(geometry, indices, radius, sv, roundSegments, edgeSegments, direction, pw, false, [
+                    uvOffset[0],
+                    uvScale[1]
+                ], ceil === 0 ? uvOffsetStart(su, sv) : uvOffsetEnd(su, sv), center(x, 0));
+                // Bottom/Top
+                computePlane(geometry, indices, su, radius, edgeSegments, roundSegments, direction, pw, false, [
+                    uvScale[0],
+                    uvOffset[1]
+                ], floor === 0 ? [
+                    ...uvOffsetStart(sv, su)
+                ].reverse() : [
+                    ...uvOffsetEnd(sv, su)
+                ].reverse(), center(0, y));
+            }
+        }
     }
-  }
-
-  return {
-    positions: positions,
-    cells: cells
-  };
+    const rx = widthX * 0.5;
+    const ry = widthY * 0.5;
+    const rz = widthZ * 0.5;
+    for(let i = 0; i < geometry.positions.length; i += 3){
+        const position = [
+            geometry.positions[i],
+            geometry.positions[i + 1],
+            geometry.positions[i + 2]
+        ];
+        TMP[0] = position[0];
+        TMP[1] = position[1];
+        TMP[2] = position[2];
+        if (position[0] < -rx) {
+            position[0] = -rx;
+        } else if (position[0] > rx) {
+            position[0] = rx;
+        }
+        if (position[1] < -ry) {
+            position[1] = -ry;
+        } else if (position[1] > ry) {
+            position[1] = ry;
+        }
+        if (position[2] < -rz) {
+            position[2] = -rz;
+        } else if (position[2] > rz) {
+            position[2] = rz;
+        }
+        TMP[0] -= position[0];
+        TMP[1] -= position[1];
+        TMP[2] -= position[2];
+        normalize(TMP);
+        geometry.normals[i] = TMP[0];
+        geometry.normals[i + 1] = TMP[1];
+        geometry.normals[i + 2] = TMP[2];
+        geometry.positions[i] = position[0] + radius * TMP[0];
+        geometry.positions[i + 1] = position[1] + radius * TMP[1];
+        geometry.positions[i + 2] = position[2] + radius * TMP[2];
+    }
+    return geometry;
 }
 
-var primitiveCircle_1 = primitiveCircle;
+/**
+ * @typedef {object} EllipsoidOptions
+ * @property {number} [radius=0.5]
+ * @property {number} [nx=32]
+ * @property {number} [ny=16]
+ * @property {number} [rx=1]
+ * @property {number} [ry=0.5]
+ * @property {number} [rz=ry]
+ * @property {number} [theta=Math.PI]
+ * @property {number} [thetaOffset=0]
+ * @property {number} [phi=TAU]
+ * @property {number} [phiOffset=0]
+ */ /**
+ * Default to an oblate spheroid.
+ * @alias module:ellipsoid
+ * @param {EllipsoidOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function ellipsoid({ radius = 1, nx = 32, ny = 16, rx = 0.5, ry = 0.25, rz = ry, theta = Math.PI, thetaOffset = 0, phi = TAU, phiOffset = 0 } = {}) {
+    checkArguments(arguments);
+    const size = (ny + 1) * (nx + 1);
+    const positions = new Float32Array(size * 3);
+    const normals = new Float32Array(size * 3);
+    const uvs = new Float32Array(size * 2);
+    const cells = new (getCellsTypedArray(size))(ny * nx * 6);
+    let vertexIndex = 0;
+    let cellIndex = 0;
+    for(let y = 0; y <= ny; y++){
+        const v = y / ny;
+        const t = v * theta + thetaOffset;
+        const cosTheta = Math.cos(t);
+        const sinTheta = Math.sin(t);
+        for(let x = 0; x <= nx; x++){
+            const u = x / nx;
+            const p = u * phi + phiOffset;
+            const cosPhi = Math.cos(p);
+            const sinPhi = Math.sin(p);
+            TMP[0] = -rx * cosPhi * sinTheta;
+            TMP[1] = -ry * cosTheta;
+            TMP[2] = rz * sinPhi * sinTheta;
+            positions[vertexIndex * 3] = radius * TMP[0];
+            positions[vertexIndex * 3 + 1] = radius * TMP[1];
+            positions[vertexIndex * 3 + 2] = radius * TMP[2];
+            normalize(TMP);
+            normals[vertexIndex * 3] = TMP[0];
+            normals[vertexIndex * 3 + 1] = TMP[1];
+            normals[vertexIndex * 3 + 2] = TMP[2];
+            uvs[vertexIndex * 2] = u;
+            uvs[vertexIndex * 2 + 1] = v;
+            vertexIndex++;
+        }
+        if (y > 0) {
+            for(let i = vertexIndex - 2 * (nx + 1); i + nx + 2 < vertexIndex; i++){
+                const a = i;
+                const b = i + 1;
+                const c = i + nx + 1;
+                const d = i + nx + 2;
+                cells[cellIndex] = a;
+                cells[cellIndex + 1] = b;
+                cells[cellIndex + 2] = c;
+                cells[cellIndex + 3] = c;
+                cells[cellIndex + 4] = b;
+                cells[cellIndex + 5] = d;
+                cellIndex += 6;
+            }
+        }
+    }
+    return {
+        positions,
+        normals,
+        uvs,
+        cells
+    };
+}
 
-var primitiveGeometry = {
-  quad: primitiveQuad_1,
-  plane: primitivePlane,
-  cube: primitiveCube,
-  roundedCube: primitiveRoundedCube,
-  capsule: primitiveCapsule,
-  sphere: primitiveSphere_1,
-  icosphere: primitiveIcosphere,
-  ellipsoid: primitiveEllipsoid,
-  torus: primitiveTorus,
-  cylinder: primitiveCylinder,
-  box: primitiveBox,
-  circle: primitiveCircle_1
-};
+/**
+ * @typedef {object} SphereOptions
+ * @property {number} [radius=0.5]
+ * @property {number} [nx=32]
+ * @property {number} [ny=16]
+ * @property {number} [theta=Math.PI]
+ * @property {number} [thetaOffset=0]
+ * @property {number} [phi=TAU]
+ * @property {number} [phiOffset=0]
+ */ /**
+ * @alias module:sphere
+ * @param {SphereOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function sphere({ radius = 0.5, nx = 32, ny = 16, theta, thetaOffset, phi, phiOffset } = {}) {
+    checkArguments(arguments);
+    return ellipsoid({
+        radius,
+        nx,
+        ny,
+        theta,
+        thetaOffset,
+        phi,
+        phiOffset,
+        rx: 1,
+        ry: 1
+    });
+}
 
-var box = primitiveGeometry.box;
-var capsule = primitiveGeometry.capsule;
-var circle = primitiveGeometry.circle;
-var cube = primitiveGeometry.cube;
-var cylinder = primitiveGeometry.cylinder;
-export default primitiveGeometry;
-var ellipsoid = primitiveGeometry.ellipsoid;
-var icosphere$1 = primitiveGeometry.icosphere;
-var plane = primitiveGeometry.plane;
-var quad = primitiveGeometry.quad;
-var roundedCube = primitiveGeometry.roundedCube;
-var sphere = primitiveGeometry.sphere;
-var torus = primitiveGeometry.torus;
-export { primitiveGeometry as __moduleExports, box, capsule, circle, cube, cylinder, ellipsoid, icosphere$1 as icosphere, plane, quad, roundedCube, sphere, torus };
+const f = 0.5 + Math.sqrt(5) / 2;
+/**
+ * @typedef {object} IcosphereOptions
+ * @property {number} [radius=0.5]
+ * @property {number} [subdivisions=2]
+ */ /**
+ * @alias module:icosphere
+ * @param {IcosphereOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function icosphere({ radius = 0.5, subdivisions = 2 } = {}) {
+    checkArguments(arguments);
+    if (subdivisions > 10) throw new Error("Max subdivisions is 10.");
+    const T = Math.pow(4, subdivisions);
+    const numVertices = 10 * T + 2;
+    const numDuplicates = subdivisions === 0 ? 3 : Math.pow(2, subdivisions) * 3 + 9;
+    const size = numVertices + numDuplicates;
+    const positions = new Float32Array(size * 3);
+    const uvs = new Float32Array(size * 2);
+    // prettier-ignore
+    positions.set(Float32Array.of(-1, f, 0, 1, f, 0, -1, -f, 0, 1, -f, 0, 0, -1, f, 0, 1, f, 0, -1, -f, 0, 1, -f, f, 0, -1, f, 0, 1, -f, 0, -1, -f, 0, 1));
+    // prettier-ignore
+    let cells = Uint16Array.of(0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 11, 10, 2, 5, 11, 4, 1, 5, 9, 7, 1, 8, 10, 7, 6, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 9, 8, 1, 4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7);
+    let vertexIndex = 12;
+    const midCache = subdivisions ? {} : null;
+    function addMidPoint(a, b) {
+        // Cantor's pairing function
+        const key = Math.floor((a + b) * (a + b + 1) / 2 + Math.min(a, b));
+        const i = midCache[key];
+        if (i !== undefined) {
+            delete midCache[key];
+            return i;
+        }
+        midCache[key] = vertexIndex;
+        positions[3 * vertexIndex + 0] = (positions[3 * a + 0] + positions[3 * b + 0]) * 0.5;
+        positions[3 * vertexIndex + 1] = (positions[3 * a + 1] + positions[3 * b + 1]) * 0.5;
+        positions[3 * vertexIndex + 2] = (positions[3 * a + 2] + positions[3 * b + 2]) * 0.5;
+        return vertexIndex++;
+    }
+    let cellsPrev = cells;
+    const IndexArray = subdivisions > 5 ? Uint32Array : getCellsTypedArray(size);
+    // Subdivide
+    for(let i = 0; i < subdivisions; i++){
+        const prevLen = cellsPrev.length;
+        cells = new IndexArray(prevLen * 4);
+        for(let k = 0; k < prevLen; k += 3){
+            const v1 = cellsPrev[k + 0];
+            const v2 = cellsPrev[k + 1];
+            const v3 = cellsPrev[k + 2];
+            const a = addMidPoint(v1, v2);
+            const b = addMidPoint(v2, v3);
+            const c = addMidPoint(v3, v1);
+            cells[k * 4 + 0] = v1;
+            cells[k * 4 + 1] = a;
+            cells[k * 4 + 2] = c;
+            cells[k * 4 + 3] = v2;
+            cells[k * 4 + 4] = b;
+            cells[k * 4 + 5] = a;
+            cells[k * 4 + 6] = v3;
+            cells[k * 4 + 7] = c;
+            cells[k * 4 + 8] = b;
+            cells[k * 4 + 9] = a;
+            cells[k * 4 + 10] = b;
+            cells[k * 4 + 11] = c;
+        }
+        cellsPrev = cells;
+    }
+    // Normalize
+    for(let i = 0; i < numVertices * 3; i += 3){
+        const v1 = positions[i + 0];
+        const v2 = positions[i + 1];
+        const v3 = positions[i + 2];
+        const m = 1 / Math.sqrt(v1 * v1 + v2 * v2 + v3 * v3);
+        positions[i + 0] *= m;
+        positions[i + 1] *= m;
+        positions[i + 2] *= m;
+    }
+    for(let i = 0; i < numVertices; i++){
+        uvs[2 * i + 0] = -Math.atan2(positions[3 * i + 2], positions[3 * i]) / TAU + 0.5;
+        uvs[2 * i + 1] = Math.asin(positions[3 * i + 1]) / Math.PI + 0.5;
+    }
+    const duplicates = {};
+    function addDuplicate(i, uvx, uvy, cached) {
+        if (cached) {
+            const dupe = duplicates[i];
+            if (dupe !== undefined) return dupe;
+        }
+        positions[3 * vertexIndex + 0] = positions[3 * i + 0];
+        positions[3 * vertexIndex + 1] = positions[3 * i + 1];
+        positions[3 * vertexIndex + 2] = positions[3 * i + 2];
+        uvs[2 * vertexIndex + 0] = uvx;
+        uvs[2 * vertexIndex + 1] = uvy;
+        if (cached) duplicates[i] = vertexIndex;
+        return vertexIndex++;
+    }
+    for(let i = 0; i < cells.length; i += 3){
+        const a = cells[i + 0];
+        const b = cells[i + 1];
+        const c = cells[i + 2];
+        let ax = uvs[2 * a];
+        let bx = uvs[2 * b];
+        let cx = uvs[2 * c];
+        const ay = uvs[2 * a + 1];
+        const by = uvs[2 * b + 1];
+        const cy = uvs[2 * c + 1];
+        if (ax - bx >= 0.5 && ay !== 1) bx += 1;
+        if (bx - cx > 0.5) cx += 1;
+        if (ax < 0.5 && cx - ax > 0.5 || ax === 1 && cy === 0) ax += 1;
+        if (bx < 0.5 && ax - bx > 0.5) bx += 1;
+        // Poles
+        const isPoleA = ay === 0 || ay === 1;
+        const isPoleB = by === 0 || by === 1;
+        const isPoleC = cy === 0 || cy === 1;
+        if (isPoleA) {
+            ax = (bx + cx) * 0.5;
+            if (ay === 1 - bx) {
+                uvs[2 * a] = ax;
+            } else {
+                cells[i + 0] = addDuplicate(a, ax, ay, false);
+            }
+        } else if (isPoleB) {
+            bx = (ax + cx) * 0.5;
+            if (by === ax) {
+                uvs[2 * b] = bx;
+            } else {
+                cells[i + 1] = addDuplicate(b, bx, by, false);
+            }
+        } else if (isPoleC) {
+            cx = (ax + bx) * 0.5;
+            if (cy === ax) {
+                uvs[2 * c] = cx;
+            } else {
+                cells[i + 2] = addDuplicate(c, cx, cy, false);
+            }
+        }
+        // Seam zipper
+        if (ax !== uvs[2 * a] && !isPoleA) {
+            cells[i + 0] = addDuplicate(a, ax, ay, true);
+        }
+        if (bx !== uvs[2 * b] && !isPoleB) {
+            cells[i + 1] = addDuplicate(b, bx, by, true);
+        }
+        if (cx !== uvs[2 * c] && !isPoleC) {
+            cells[i + 2] = addDuplicate(c, cx, cy, true);
+        }
+    }
+    return {
+        positions: positions.map((v)=>v * radius),
+        normals: positions,
+        uvs,
+        cells
+    };
+}
+
+/**
+ * @typedef {object} CylinderOptions
+ * @property {number} [height=1]
+ * @property {number} [radius=0.25]
+ * @property {number} [nx=16]
+ * @property {number} [ny=1]
+ * @property {number} [radiusApex=radius]
+ * @property {number} [capSegments=1]
+ * @property {boolean} [capApex=true]
+ * @property {boolean} [capBase=true]
+ * @property {number} [phi=TAU]
+ */ /**
+ * @alias module:cylinder
+ * @param {CylinderOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function cylinder({ height = 1, radius = 0.25, nx = 16, ny = 1, radiusApex = radius, capSegments = 1, capApex = true, capBase = true, capBaseSegments = capSegments, phi = TAU } = {}) {
+    checkArguments(arguments);
+    let capCount = 0;
+    if (capApex) capCount += capSegments;
+    if (capBase) capCount += capBaseSegments;
+    const segments = nx + 1;
+    const slices = ny + 1;
+    const size = segments * slices + segments * 2 * capCount;
+    const positions = new Float32Array(size * 3);
+    const normals = new Float32Array(size * 3);
+    const uvs = new Float32Array(size * 2);
+    const cells = new (getCellsTypedArray(size))((nx * ny + nx * capCount) * 6);
+    let vertexIndex = 0;
+    let cellIndex = 0;
+    const halfHeight = height / 2;
+    const segmentIncrement = 1 / (segments - 1);
+    const ringIncrement = 1 / (slices - 1);
+    for(let i = 0; i < segments; i++){
+        const u = i * segmentIncrement;
+        for(let j = 0; j < slices; j++){
+            const v = j * ringIncrement;
+            const p = u * phi;
+            const cosPhi = -Math.cos(p);
+            const sinPhi = Math.sin(p);
+            const r = radius * (1 - v) + radiusApex * v;
+            positions[vertexIndex * 3] = r * cosPhi;
+            positions[vertexIndex * 3 + 1] = height * v - halfHeight;
+            positions[vertexIndex * 3 + 2] = r * sinPhi;
+            TMP[0] = height * cosPhi;
+            TMP[1] = radius - radiusApex;
+            TMP[2] = height * sinPhi;
+            normalize(TMP);
+            normals[vertexIndex * 3] = TMP[0];
+            normals[vertexIndex * 3 + 1] = TMP[1];
+            normals[vertexIndex * 3 + 2] = TMP[2];
+            uvs[vertexIndex * 2] = u;
+            uvs[vertexIndex * 2 + 1] = v;
+            vertexIndex++;
+        }
+    }
+    for(let j = 0; j < slices - 1; j++){
+        for(let i = 0; i < segments - 1; i++){
+            cells[cellIndex + 0] = (i + 0) * slices + (j + 0);
+            cells[cellIndex + 1] = (i + 1) * slices + (j + 0);
+            cells[cellIndex + 2] = (i + 1) * slices + (j + 1);
+            cells[cellIndex + 3] = (i + 0) * slices + (j + 0);
+            cells[cellIndex + 4] = (i + 1) * slices + (j + 1);
+            cells[cellIndex + 5] = (i + 0) * slices + (j + 1);
+            cellIndex += 6;
+        }
+    }
+    function computeCap(flip, height, radius, capSegments) {
+        const index = vertexIndex;
+        const segmentIncrement = 1 / (segments - 1);
+        for(let r = 0; r < capSegments; r++){
+            for(let i = 0; i < segments; i++){
+                const p = i * segmentIncrement * phi;
+                const cosPhi = -Math.cos(p);
+                const sinPhi = Math.sin(p);
+                // inner point
+                positions[vertexIndex * 3] = radius * cosPhi * r / capSegments;
+                positions[vertexIndex * 3 + 1] = height;
+                positions[vertexIndex * 3 + 2] = radius * sinPhi * r / capSegments;
+                normals[vertexIndex * 3 + 1] = -flip;
+                uvs[vertexIndex * 2] = 0.5 * cosPhi * r / capSegments + 0.5;
+                uvs[vertexIndex * 2 + 1] = 0.5 * sinPhi * r / capSegments + 0.5;
+                vertexIndex++;
+                // outer point
+                positions[vertexIndex * 3] = radius * cosPhi * (r + 1) / capSegments;
+                positions[vertexIndex * 3 + 1] = height;
+                positions[vertexIndex * 3 + 2] = radius * sinPhi * (r + 1) / capSegments;
+                normals[vertexIndex * 3 + 1] = -flip;
+                uvs[vertexIndex * 2] = 0.5 * (cosPhi * (r + 1)) / capSegments + 0.5;
+                uvs[vertexIndex * 2 + 1] = 0.5 * (sinPhi * (r + 1)) / capSegments + 0.5;
+                vertexIndex++;
+            }
+        }
+        for(let r = 0; r < capSegments; r++){
+            for(let i = 0; i < segments - 1; i++){
+                const n = index + r * segments * 2 + i * 2;
+                const a = n + 0;
+                const b = n + 1;
+                const c = n + 2;
+                const d = n + 3;
+                if (flip === 1) {
+                    cells[cellIndex] = a;
+                    cells[cellIndex + 1] = c;
+                    cells[cellIndex + 2] = d;
+                    cells[cellIndex + 3] = a;
+                    cells[cellIndex + 4] = d;
+                    cells[cellIndex + 5] = b;
+                } else {
+                    cells[cellIndex + 0] = a;
+                    cells[cellIndex + 1] = d;
+                    cells[cellIndex + 2] = c;
+                    cells[cellIndex + 3] = a;
+                    cells[cellIndex + 4] = b;
+                    cells[cellIndex + 5] = d;
+                }
+                cellIndex += 6;
+            }
+        }
+    }
+    if (capBase) computeCap(1, -halfHeight, radius, capBaseSegments);
+    if (capApex) computeCap(-1, halfHeight, radiusApex, capSegments);
+    return {
+        positions,
+        normals,
+        uvs,
+        cells
+    };
+}
+
+/**
+ * @typedef {object} ConeOptions
+ * @property {number} [height=1]
+ * @property {number} [radius=0.25]
+ * @property {number} [nx=16]
+ * @property {number} [ny=1]
+ * @property {number} [capSegments=1]
+ * @property {boolean} [capBase=true]
+ * @property {number} [phi=TAU]
+ */ /**
+ * @alias module:cone
+ * @param {ConeOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function cone({ height, radius, nx, ny, capSegments, capBase, phi } = {}) {
+    checkArguments(arguments);
+    return cylinder({
+        height,
+        radius,
+        nx,
+        ny,
+        capSegments,
+        capBase,
+        phi,
+        radiusApex: 0,
+        capApex: false
+    });
+}
+
+/**
+ * @typedef {object} CapsuleOptions
+ * @property {number} [height=0.5]
+ * @property {number} [radius=0.25]
+ * @property {number} [nx=16]
+ * @property {number} [ny=1]
+ * @property {number} [roundSegments=32]
+ * @property {number} [phi=TAU]
+ */ /**
+ * @alias module:capsule
+ * @param {CapsuleOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function capsule({ height = 0.5, radius = 0.25, nx = 16, ny = 1, roundSegments = 16, phi = TAU } = {}) {
+    checkArguments(arguments);
+    const ringsBody = ny + 1;
+    const ringsCap = roundSegments * 2;
+    const ringsTotal = ringsCap + ringsBody;
+    const size = ringsTotal * nx;
+    const positions = new Float32Array(size * 3);
+    const normals = new Float32Array(size * 3);
+    const uvs = new Float32Array(size * 2);
+    const cells = new (getCellsTypedArray(size))((ringsTotal - 1) * (nx - 1) * 6);
+    let vertexIndex = 0;
+    let cellIndex = 0;
+    const segmentIncrement = 1 / (nx - 1);
+    const ringIncrement = 1 / (ringsCap - 1);
+    const bodyIncrement = 1 / (ringsBody - 1);
+    function computeRing(r, y, dy) {
+        for(let s = 0; s < nx; s++, vertexIndex++){
+            const x = -Math.cos(s * segmentIncrement * phi) * r;
+            const z = Math.sin(s * segmentIncrement * phi) * r;
+            const py = radius * y + height * dy;
+            positions[vertexIndex * 3] = radius * x;
+            positions[vertexIndex * 3 + 1] = py;
+            positions[vertexIndex * 3 + 2] = radius * z;
+            normals[vertexIndex * 3] = x;
+            normals[vertexIndex * 3 + 1] = y;
+            normals[vertexIndex * 3 + 2] = z;
+            uvs[vertexIndex * 2] = s * segmentIncrement;
+            uvs[vertexIndex * 2 + 1] = 1 - (0.5 - py / (2 * radius + height));
+        }
+    }
+    for(let r = 0; r < roundSegments; r++){
+        computeRing(Math.sin(Math.PI * r * ringIncrement), Math.sin(Math.PI * (r * ringIncrement - 0.5)), -0.5);
+    }
+    for(let r = 0; r < ringsBody; r++){
+        computeRing(1, 0, r * bodyIncrement - 0.5);
+    }
+    for(let r = roundSegments; r < ringsCap; r++){
+        computeRing(Math.sin(Math.PI * r * ringIncrement), Math.sin(Math.PI * (r * ringIncrement - 0.5)), 0.5);
+    }
+    for(let r = 0; r < ringsTotal - 1; r++){
+        for(let s = 0; s < nx - 1; s++){
+            const a = r * nx;
+            const b = (r + 1) * nx;
+            const s1 = s + 1;
+            cells[cellIndex] = a + s;
+            cells[cellIndex + 1] = a + s1;
+            cells[cellIndex + 2] = b + s1;
+            cells[cellIndex + 3] = a + s;
+            cells[cellIndex + 4] = b + s1;
+            cells[cellIndex + 5] = b + s;
+            cellIndex += 6;
+        }
+    }
+    return {
+        positions,
+        normals,
+        uvs,
+        cells
+    };
+}
+
+/**
+ * @typedef {object} TorusOptions
+ * @property {number} [radius=0.4]
+ * @property {number} [segments=64]
+ * @property {number} [minorRadius=0.1]
+ * @property {number} [minorSegments=32]
+ * @property {number} [theta=TAU]
+ * @property {number} [thetaOffset=0]
+ * @property {number} [phi=TAU]
+ * @property {number} [phiOffset=0]
+ */ /**
+ * @alias module:torus
+ * @param {TorusOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function torus({ radius = 0.4, segments = 64, minorRadius = 0.1, minorSegments = 32, theta = TAU, thetaOffset = 0, phi = TAU, phiOffset = 0 } = {}) {
+    checkArguments(arguments);
+    const size = (minorSegments + 1) * (segments + 1);
+    const positions = new Float32Array(size * 3);
+    const normals = new Float32Array(size * 3);
+    const uvs = new Float32Array(size * 2);
+    const cells = new (getCellsTypedArray(size))(minorSegments * segments * 6);
+    let vertexIndex = 0;
+    let cellIndex = 0;
+    for(let j = 0; j <= minorSegments; j++){
+        const v = j / minorSegments;
+        for(let i = 0; i <= segments; i++, vertexIndex++){
+            const u = i / segments;
+            const p = u * phi + phiOffset;
+            const cosPhi = -Math.cos(p);
+            const sinPhi = Math.sin(p);
+            const t = v * theta + thetaOffset;
+            const cosTheta = -Math.cos(t);
+            const sinTheta = Math.sin(t);
+            TMP[0] = (radius + minorRadius * cosTheta) * cosPhi;
+            TMP[1] = (radius + minorRadius * cosTheta) * sinPhi;
+            TMP[2] = minorRadius * sinTheta;
+            positions[vertexIndex * 3] = TMP[0];
+            positions[vertexIndex * 3 + 1] = TMP[1];
+            positions[vertexIndex * 3 + 2] = TMP[2];
+            TMP[0] -= radius * cosPhi;
+            TMP[1] -= radius * sinPhi;
+            normalize(TMP);
+            normals[vertexIndex * 3] = TMP[0];
+            normals[vertexIndex * 3 + 1] = TMP[1];
+            normals[vertexIndex * 3 + 2] = TMP[2];
+            uvs[vertexIndex * 2] = u;
+            uvs[vertexIndex * 2 + 1] = v;
+            if (j > 0 && i > 0) {
+                const a = (segments + 1) * j + i - 1;
+                const b = (segments + 1) * (j - 1) + i - 1;
+                const c = (segments + 1) * (j - 1) + i;
+                const d = (segments + 1) * j + i;
+                cells[cellIndex] = a;
+                cells[cellIndex + 1] = b;
+                cells[cellIndex + 2] = d;
+                cells[cellIndex + 3] = b;
+                cells[cellIndex + 4] = c;
+                cells[cellIndex + 5] = d;
+                cellIndex += 6;
+            }
+        }
+    }
+    return {
+        positions,
+        normals,
+        uvs,
+        cells
+    };
+}
+
+/**
+ * @typedef {object} TetrahedronOptions
+ * @property {number} [radius=0.5]
+ */ /**
+ * @alias module:tetrahedron
+ * @param {TetrahedronOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function tetrahedron({ radius = 0.5 } = {}) {
+    checkArguments(arguments);
+    return cylinder({
+        height: radius * 1.5,
+        radius,
+        nx: 3,
+        ny: 1,
+        radiusApex: 0,
+        capSegments: 0,
+        capApex: false,
+        capBaseSegments: 1
+    });
+}
+
+/**
+ * @typedef {object} IcosahedronOptions
+ * @property {number} [radius=0.5]
+ */ /**
+ * @alias module:icosahedron
+ * @param {IcosahedronOptions} [options={}]
+ * @returns {import("../types.js").SimplicialComplex}
+ */ function icosahedron({ radius } = {}) {
+    checkArguments(arguments);
+    return icosphere({
+        subdivisions: 0,
+        radius
+    });
+}
+
+export { annulus, box, capsule, circle, cone, cube, cylinder, disc, ellipse, ellipsoid, icosahedron, icosphere, mappings, plane, quad, reuleux, roundedCube, roundedRectangle, sphere, squircle, stadium, superellipse, tetrahedron, torus, utils };
