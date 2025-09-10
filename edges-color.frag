@@ -2,7 +2,7 @@
  * Color Edge Detection
  *
  * IMPORTANT NOTICE: color edge detection requires gamma-corrected colors, and
- * thus 'colorTex' should be a non-sRGB texture.
+ * thus 'uTexture' should be a non-sRGB texture.
  */
 
 precision highp float;
@@ -15,7 +15,7 @@ precision highp float;
 #define SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR 2.0
 #endif
 
-uniform sampler2D colorTex;
+uniform sampler2D uTexture;
 
 varying vec2 vTexCoord0;
 varying vec4 vOffset[3];
@@ -26,13 +26,13 @@ void main() {
 
   // Calculate color deltas:
   vec4 delta;
-  vec3 c = texture2D(colorTex, vTexCoord0).rgb;
+  vec3 c = texture2D(uTexture, vTexCoord0).rgb;
 
-  vec3 cLeft = texture2D(colorTex, vOffset[0].xy).rgb;
+  vec3 cLeft = texture2D(uTexture, vOffset[0].xy).rgb;
   vec3 t = abs(c - cLeft);
   delta.x = max(max(t.r, t.g), t.b);
 
-  vec3 cTop  = texture2D(colorTex, vOffset[0].zw).rgb;
+  vec3 cTop  = texture2D(uTexture, vOffset[0].zw).rgb;
   t = abs(c - cTop);
   delta.y = max(max(t.r, t.g), t.b);
 
@@ -44,11 +44,11 @@ void main() {
       discard;
 
   // Calculate right and bottom deltas:
-  vec3 cRight = texture2D(colorTex, vOffset[1].xy).rgb;
+  vec3 cRight = texture2D(uTexture, vOffset[1].xy).rgb;
   t = abs(c - cRight);
   delta.z = max(max(t.r, t.g), t.b);
 
-  vec3 cBottom  = texture2D(colorTex, vOffset[1].zw).rgb;
+  vec3 cBottom  = texture2D(uTexture, vOffset[1].zw).rgb;
   t = abs(c - cBottom);
   delta.w = max(max(t.r, t.g), t.b);
 
@@ -56,11 +56,11 @@ void main() {
   vec2 maxDelta = max(delta.xy, delta.zw);
 
   // Calculate left-left and top-top deltas:
-  vec3 cLeftLeft  = texture2D(colorTex, vOffset[2].xy).rgb;
+  vec3 cLeftLeft  = texture2D(uTexture, vOffset[2].xy).rgb;
   t = abs(c - cLeftLeft);
   delta.z = max(max(t.r, t.g), t.b);
 
-  vec3 cTopTop = texture2D(colorTex, vOffset[2].zw).rgb;
+  vec3 cTopTop = texture2D(uTexture, vOffset[2].zw).rgb;
   t = abs(c - cTopTop);
   delta.w = max(max(t.r, t.g), t.b);
 

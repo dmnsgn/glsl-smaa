@@ -16,26 +16,25 @@
 
 attribute vec2 aPosition;
 
-uniform vec2 resolution;
+uniform vec2 uViewportSize;
+uniform vec2 uTexelSize;
 
 varying vec2 vTexCoord0;
 varying vec2 vPixCoord;
 varying vec4 vOffset[3];
 
 void main() {
-  vec4 SMAA_RT_METRICS = vec4(1.0 / resolution.x, 1.0 / resolution.y, resolution.x, resolution.y);
-
 	vTexCoord0 = vec2((aPosition + 1.0) / 2.0);
 
-  vPixCoord = vTexCoord0 * SMAA_RT_METRICS.zw;
+  vPixCoord = vTexCoord0 * uViewportSize;
 
   // We will use these offsets for the searches later on (see @PSEUDO_GATHER4):
-  vOffset[0] = mad(SMAA_RT_METRICS.xyxy, vec4(-0.25, -0.125,  1.25, -0.125), vTexCoord0.xyxy);
-  vOffset[1] = mad(SMAA_RT_METRICS.xyxy, vec4(-0.125, -0.25, -0.125,  1.25), vTexCoord0.xyxy);
+  vOffset[0] = mad(vec4(uTexelSize, uTexelSize), vec4(-0.25, -0.125,  1.25, -0.125), vTexCoord0.xyxy);
+  vOffset[1] = mad(vec4(uTexelSize, uTexelSize), vec4(-0.125, -0.25, -0.125,  1.25), vTexCoord0.xyxy);
 
   // And these for the searches, they indicate the ends of the loops:
   vOffset[2] = mad(
-    SMAA_RT_METRICS.xxyy,
+    vec4(uTexelSize.x, uTexelSize.x, uTexelSize.y, uTexelSize.y),
     vec4(-2.0, 2.0, -2.0, 2.0) * float(SMAA_MAX_SEARCH_STEPS),
     vec4(vOffset[0].xz, vOffset[1].yw)
   );

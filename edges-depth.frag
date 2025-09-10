@@ -8,7 +8,7 @@ precision highp float;
 #define SMAA_DEPTH_THRESHOLD (0.1 * SMAA_THRESHOLD)
 #endif
 
-uniform sampler2D depthTex;
+uniform sampler2D uDepthTexture;
 
 varying vec2 vTexCoord0;
 varying vec4 vOffset[3];
@@ -25,7 +25,7 @@ vec3 SMAAGatherNeighbours(vec2 texcoord, vec4 offset[3], sampler2D tex) {
 }
 
 void main () {
-  vec3 neighbours = SMAAGatherNeighbours(vTexCoord0, vOffset, depthTex);
+  vec3 neighbours = SMAAGatherNeighbours(vTexCoord0, vOffset, uDepthTexture);
   vec2 delta = abs(neighbours.xx - vec2(neighbours.y, neighbours.z));
   vec2 edges = step(SMAA_DEPTH_THRESHOLD, delta);
 

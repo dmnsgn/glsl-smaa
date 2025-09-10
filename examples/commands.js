@@ -144,13 +144,13 @@ const ready = async () =>
     ${EDGES_VERT}`,
       frag: `${PRESET}
     ${PRESETS}
-    ${DEPTH_EDGES_FRAG}`,
+    ${EDGES_DEPTH_FRAG}`,
       attributes: {
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        resolution: [regl._gl.drawingBufferWidth, regl._gl.drawingBufferHeight],
-        depthTex: FBO.depth,
+        uTexelSize: [1 / regl._gl.drawingBufferWidth, 1 / regl._gl.drawingBufferHeight],
+        uDepthTexture: FBO.depth,
       },
       depth: {
         enable: false,
@@ -164,13 +164,13 @@ const ready = async () =>
     ${EDGES_VERT}`,
       frag: `${PRESET}
     ${PRESETS}
-    ${LUMA_EDGES_FRAG}`,
+    ${EDGES_LUMA_FRAG}`,
       attributes: {
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        resolution: [regl._gl.drawingBufferWidth, regl._gl.drawingBufferHeight],
-        colorTex: FBO.SMAA,
+        uTexelSize: [1 / regl._gl.drawingBufferWidth, 1 / regl._gl.drawingBufferHeight],
+        uTexture: FBO.SMAA,
       },
       depth: {
         enable: false,
@@ -186,14 +186,14 @@ const ready = async () =>
     ${PRESETS}
     // #define SMAA_THRESHOLD 0.1
     // #define SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR 2.0
-    ${COLOR_EDGES_FRAG}
+    ${EDGES_COLOR_FRAG}
     `,
       attributes: {
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        resolution: [regl._gl.drawingBufferWidth, regl._gl.drawingBufferHeight],
-        colorTex: FBO.SMAA,
+        uTexelSize: [1 / regl._gl.drawingBufferWidth, 1 / regl._gl.drawingBufferHeight],
+        uTexture: FBO.SMAA,
       },
       depth: {
         enable: false,
@@ -215,10 +215,11 @@ const ready = async () =>
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        resolution: [regl._gl.drawingBufferWidth, regl._gl.drawingBufferHeight],
-        edgesTex: FBO.edges,
-        searchTex: regl.prop("searchTex"),
-        areaTex: regl.prop("areaTex"),
+        uViewportSize: [regl._gl.drawingBufferWidth, regl._gl.drawingBufferHeight],
+        uTexelSize: [1 / regl._gl.drawingBufferWidth, 1 / regl._gl.drawingBufferHeight],
+        uEdgesTexture: FBO.edges,
+        uSearchTexture: regl.prop("searchTex"),
+        uAreaTexture: regl.prop("areaTex"),
       },
       depth: {
         enable: false,
@@ -238,9 +239,9 @@ const ready = async () =>
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        resolution: [regl._gl.drawingBufferWidth, regl._gl.drawingBufferHeight],
-        colorTex: FBO.SMAA,
-        blendTex: FBO.weights,
+        uTexelSize: [1 / regl._gl.drawingBufferWidth, 1 / regl._gl.drawingBufferHeight],
+        uTexture: FBO.SMAA,
+        uBlendTexture: FBO.weights,
       },
       depth: {
         enable: false,
