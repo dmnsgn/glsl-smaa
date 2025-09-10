@@ -1,3 +1,15 @@
+import {
+  PRESETS,
+  EDGES_VERT,
+  EDGES_LUMA_FRAG,
+  EDGES_COLOR_FRAG,
+  EDGES_DEPTH_FRAG,
+  SMAA_WEIGHTS_VERT,
+  SMAA_WEIGHTS_FRAG,
+  SMAA_BLEND_VERT,
+  SMAA_BLEND_FRAG,
+} from "../index.js";
+
 import { cube as createCube, sphere as createSphere } from "primitive-geometry";
 import computeNormals from "geom-normals";
 import bunnyGeometry from "bunny";
@@ -30,19 +42,6 @@ const ready = async () =>
 
     const LAYER_FRAG = await glsl("./shaders/layer.frag");
     const FXAA_FRAG = await glsl("./shaders/fxaa.frag");
-
-    // Lib
-    const PRESETS = await glsl("../presets.glsl");
-    const EDGES_VERT = await glsl("../edges.vert");
-    const LUMA_EDGES_FRAG = await glsl("../edges-luma.frag");
-    const COLOR_EDGES_FRAG = await glsl("../edges-color.frag");
-    const DEPTH_EDGES_FRAG = await glsl("../edges-depth.frag");
-
-    const SMAA_WEIGHTS_VERT = await glsl("../smaa-weights.vert");
-    const SMAA_WEIGHTS_FRAG = await glsl("../smaa-weights.frag");
-
-    const SMAA_BLEND_VERT = await glsl("../smaa-blend.vert");
-    const SMAA_BLEND_FRAG = await glsl("../smaa-blend.frag");
 
     // Env map
     const envMap = regl({
