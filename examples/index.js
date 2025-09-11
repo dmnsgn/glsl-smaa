@@ -7,7 +7,7 @@ import createMesh from "./mesh.js";
 import FBO from "./fbos.js";
 import COMMANDS, { ready as commandsReady } from "./commands.js";
 import { loadTexture, loadHdrTexture } from "./utils.js";
-import SMAATextures from "../index.js";
+import { SMAATextures } from "../index.js";
 
 /**
  * SETUP

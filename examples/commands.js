@@ -1,3 +1,13 @@
+import {
+  PRESETS,
+  SMAA_EDGES_VERT,
+  SMAA_EDGES_FRAG,
+  SMAA_WEIGHTS_VERT,
+  SMAA_WEIGHTS_FRAG,
+  SMAA_BLEND_VERT,
+  SMAA_BLEND_FRAG,
+} from "../index.js";
+
 import { cube as createCube, sphere as createSphere } from "primitive-geometry";
 import computeNormals from "geom-normals";
 import bunnyGeometry from "bunny";
@@ -31,19 +41,6 @@ const ready = async () =>
     const LAYER_FRAG = await glsl("./shaders/layer.frag");
     const FXAA_FRAG = await glsl("./shaders/fxaa.frag");
 
-    // Lib
-    const PRESETS = await glsl("../presets.glsl");
-    const EDGES_VERT = await glsl("../edges.vert");
-    const LUMA_EDGES_FRAG = await glsl("../edges-luma.frag");
-    const COLOR_EDGES_FRAG = await glsl("../edges-color.frag");
-    const DEPTH_EDGES_FRAG = await glsl("../edges-depth.frag");
-
-    const SMAA_WEIGHTS_VERT = await glsl("../smaa-weights.vert");
-    const SMAA_WEIGHTS_FRAG = await glsl("../smaa-weights.frag");
-
-    const SMAA_BLEND_VERT = await glsl("../smaa-blend.vert");
-    const SMAA_BLEND_FRAG = await glsl("../smaa-blend.frag");
-
     // Env map
     const envMap = regl({
       vert: ENVMAP_VERT,
@@ -63,8 +60,8 @@ const ready = async () =>
     });
 
     // Meshes
-    const cubeGeometry = createCube(1, 1, 1, 100, 100, 100);
-    const sphereGeometry = createSphere(1, { segments: 16 });
+    const cubeGeometry = createCube({ sx: 1, nx: 100 });
+    const sphereGeometry = createSphere({ radius: 1, segments: 16 });
 
     const cube = regl({
       vert: `#define UVS
@@ -141,16 +138,20 @@ const ready = async () =>
     const SMAADepthEdges = regl({
       vert: `${PRESET}
     ${PRESETS}
-    ${EDGES_VERT}`,
+    ${SMAA_EDGES_VERT}`,
       frag: `${PRESET}
     ${PRESETS}
-    ${DEPTH_EDGES_FRAG}`,
+    #define SMAA_EDGES_DEPTH
+    ${SMAA_EDGES_FRAG}`,
       attributes: {
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        resolution: [regl._gl.drawingBufferWidth, regl._gl.drawingBufferHeight],
-        depthTex: FBO.depth,
+        uTexelSize: [
+          1 / regl._gl.drawingBufferWidth,
+          1 / regl._gl.drawingBufferHeight,
+        ],
+        uDepthTexture: FBO.depth,
       },
       depth: {
         enable: false,
@@ -161,16 +162,20 @@ const ready = async () =>
     const SMAALumaEdges = regl({
       vert: `${PRESET}
     ${PRESETS}
-    ${EDGES_VERT}`,
+    ${SMAA_EDGES_VERT}`,
       frag: `${PRESET}
     ${PRESETS}
-    ${LUMA_EDGES_FRAG}`,
+    #define SMAA_EDGES_LUMA
+    ${SMAA_EDGES_FRAG}`,
       attributes: {
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        resolution: [regl._gl.drawingBufferWidth, regl._gl.drawingBufferHeight],
-        colorTex: FBO.SMAA,
+        uTexelSize: [
+          1 / regl._gl.drawingBufferWidth,
+          1 / regl._gl.drawingBufferHeight,
+        ],
+        uColorTexture: FBO.SMAA,
       },
       depth: {
         enable: false,
@@ -181,19 +186,23 @@ const ready = async () =>
     const SMAAColorEdges = regl({
       vert: `${PRESET}
     ${PRESETS}
-    ${EDGES_VERT}`,
+    ${SMAA_EDGES_VERT}`,
       frag: `${PRESET}
     ${PRESETS}
     // #define SMAA_THRESHOLD 0.1
     // #define SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR 2.0
-    ${COLOR_EDGES_FRAG}
+    #define SMAA_EDGES_COLOR
+    ${SMAA_EDGES_FRAG}
     `,
       attributes: {
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        resolution: [regl._gl.drawingBufferWidth, regl._gl.drawingBufferHeight],
-        colorTex: FBO.SMAA,
+        uTexelSize: [
+          1 / regl._gl.drawingBufferWidth,
+          1 / regl._gl.drawingBufferHeight,
+        ],
+        uColorTexture: FBO.SMAA,
       },
       depth: {
         enable: false,
@@ -215,10 +224,17 @@ const ready = async () =>
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        resolution: [regl._gl.drawingBufferWidth, regl._gl.drawingBufferHeight],
-        edgesTex: FBO.edges,
-        searchTex: regl.prop("searchTex"),
-        areaTex: regl.prop("areaTex"),
+        uViewportSize: [
+          regl._gl.drawingBufferWidth,
+          regl._gl.drawingBufferHeight,
+        ],
+        uTexelSize: [
+          1 / regl._gl.drawingBufferWidth,
+          1 / regl._gl.drawingBufferHeight,
+        ],
+        uEdgesTexture: FBO.edges,
+        uSearchTexture: regl.prop("searchTex"),
+        uAreaTexture: regl.prop("areaTex"),
       },
       depth: {
         enable: false,
@@ -238,9 +254,12 @@ const ready = async () =>
         aPosition: [-4, -4, 4, -4, 0, 4],
       },
       uniforms: {
-        resolution: [regl._gl.drawingBufferWidth, regl._gl.drawingBufferHeight],
-        colorTex: FBO.SMAA,
-        blendTex: FBO.weights,
+        uTexelSize: [
+          1 / regl._gl.drawingBufferWidth,
+          1 / regl._gl.drawingBufferHeight,
+        ],
+        uColorTexture: FBO.SMAA,
+        uBlendTexture: FBO.weights,
       },
       depth: {
         enable: false,

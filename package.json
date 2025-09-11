@@ -30,20 +30,21 @@
   "main": "index.js",
   "types": "types/index.d.ts",
   "devDependencies": {
-    "async-preloader": "^5.0.2",
+    "async-preloader": "^8.0.4",
     "bunny": "^1.0.1",
-    "cameras": "^3.0.1",
-    "core-js": "^3.9.1",
-    "dat.gui": "^0.7.7",
-    "es-module-shims": "^0.10.3",
-    "geom-normals": "^1.0.1",
-    "gl-matrix": "^3.3.0",
+    "cameras": "^3.1.1",
+    "core-js": "^3.45.1",
+    "dat.gui": "^0.7.9",
+    "es-module-shims": "^2.6.2",
+    "geom-normals": "^2.1.0",
+    "gl-matrix": "^3.4.4",
     "parse-hdr": "^1.0.0",
-    "primitive-geometry": "^1.2.1",
-    "regl": "^2.1.0"
+    "primitive-geometry": "^2.11.0",
+    "regl": "^2.1.1"
   },
   "engines": {
-    "node": ">=15.0.0",
-    "npm": ">=7.0.0"
+    "node": ">=22.0.0",
+    "npm": ">=10.5.1",
+    "snowdev": ">=2.5.x"
   }
 }
