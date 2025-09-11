@@ -44,7 +44,7 @@ Three passes are required to apply the effect:
 
 You would typically set this up as part of a post-processing chain with FBOs.
 
-See the [demo](https://dmnsgn.github.io/glsl-smaa/) and its [source](demo/index.js) for an example with [REGL](http://regl.party/).
+See the [examples](https://dmnsgn.github.io/glsl-smaa/) and its [source](examples/index.js) for an example with [REGL](http://regl.party/).
 
 ## Attributes
 
@@ -71,11 +71,11 @@ ${SMAA_WEIGHTS_FRAG}
 `;
 ```
 
-### `edges.vert`
+### `smaa-edges.vert`
 
-N/A
+No options.
 
-### `edges-<edge-detection-method>.frag`
+### `smaa-edges.frag`
 
 You can use one of the 3 following edge detection method:
 
@@ -85,39 +85,46 @@ You can use one of the 3 following edge detection method:
 
 - Color: the most expensive one but catches chroma-only edges.
 
-![](https://raw.githubusercontent.com/dmnsgn/glsl-smaa/main/demo/preview-edges.gif)
+![](https://raw.githubusercontent.com/dmnsgn/glsl-smaa/main/examples/preview-edges.gif)
 
 Defines:
 
 ```glsl
+# One of:
+#define SMAA_EDGES_DEPTH
+#define SMAA_EDGES_LUMA
+#define SMAA_EDGES_COLOR
+
 #define SMAA_THRESHOLD 0.1
 #define SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR 2.0
+#define SMAA_PREDICATION 0
 ```
 
 | Name                                      | Default [Range] | Description                                                                                                                                                                                                                                                                                                                           |
 | ----------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **SMAA_THRESHOLD**                        | 0.1 [0, 0.5]    | Specifies the threshold or sensitivity to edges. Lowering this value you will be able to detect more edges at the expense of performance. Range: [0, 0.5]. 0.1 is a reasonable value, and allows to catch most visible edges. 0.05 is a rather overkill value, that allows to catch 'em all.                                          |
 | **SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR** | 2.0             | If there is an neighbor edge that has SMAA_LOCAL_CONTRAST_FACTOR times bigger contrast than current edge, current edge will be discarded. This allows to eliminate spurious crossing edges, and is based on the fact that, if there is too much contrast in a direction, that will hide perceptually contrast in the other neighbors. |
+| **SMAA_PREDICATION**                      | 0               | It locally decreases the luma or color threshold if an edge is found in depth buffer (so the global threshold can be higher).                                                                                                                                                                                                         |
 
 Uniforms:
 
 #### `luma-edges.frag`
 
-| Name         | Type      | Description                  |
-| ------------ | --------- | ---------------------------- |
-| **colorTex** | sampler2D | The input color framebuffer. |
+| Name              | Type      | Description                  |
+| ----------------- | --------- | ---------------------------- |
+| **uColorTexture** | sampler2D | The input color framebuffer. |
 
 #### `color-edges.frag`
 
-| Name         | Type      | Description                  |
-| ------------ | --------- | ---------------------------- |
-| **colorTex** | sampler2D | The input color framebuffer. |
+| Name              | Type      | Description                  |
+| ----------------- | --------- | ---------------------------- |
+| **uColorTexture** | sampler2D | The input color framebuffer. |
 
 #### `depth-edges.frag`
 
-| Name         | Type      | Description                  |
-| ------------ | --------- | ---------------------------- |
-| **depthTex** | sampler2D | The input depth framebuffer. |
+| Name              | Type      | Description                  |
+| ----------------- | --------- | ---------------------------- |
+| **uDepthTexture** | sampler2D | The input depth framebuffer. |
 
 ---
 
@@ -152,20 +159,20 @@ Defines from `presets.glsl`:
 
 Uniforms:
 
-| Name          | Type      | Description                                                     |
-| ------------- | --------- | --------------------------------------------------------------- |
-| **edgesTex**  | sampler2D | The framebuffer with edges.                                     |
-| **areaTex**   | sampler2D | Precalculated textures loadable from `textures.js` base64 urls. |
-| **searchTex** | sampler2D | Precalculated textures loadable from `textures.js` base64 urls. |
+| Name               | Type      | Description                                                     |
+| ------------------ | --------- | --------------------------------------------------------------- |
+| **uEdgesTexture**  | sampler2D | The framebuffer with edges.                                     |
+| **uAreaTexture**   | sampler2D | Precalculated textures loadable from `textures.js` base64 urls. |
+| **uSearchTexture** | sampler2D | Precalculated textures loadable from `textures.js` base64 urls. |
 
 ---
 
 ### `smaa-blend.(vert|frag)`
 
-| Name         | Type      | Description                   |
-| ------------ | --------- | ----------------------------- |
-| **colorTex** | sampler2D | The input color framebuffer.  |
-| **blendTex** | sampler2D | The framebuffer with weights. |
+| Name              | Type      | Description                   |
+| ----------------- | --------- | ----------------------------- |
+| **uColorTexture** | sampler2D | The input color framebuffer.  |
+| **uBlendTexture** | sampler2D | The framebuffer with weights. |
 
 ---
 
