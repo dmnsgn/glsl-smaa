@@ -2,7 +2,7 @@ precision highp float;
 
 #define mad(a, b, c) (a * b + c)
 
-uniform sampler2D uTexture;
+uniform sampler2D uColorTexture;
 uniform sampler2D uBlendTexture;
 
 uniform vec2 uTexelSize;
@@ -34,7 +34,7 @@ void main() {
 
   // Is there any blending weight with a value greater than 0.0?
   if (dot(a, vec4(1.0, 1.0, 1.0, 1.0)) <= 1e-5) {
-    color = texture2D(uTexture, vTexCoord0); // LinearSampler
+    color = texture2D(uColorTexture, vTexCoord0); // LinearSampler
   } else {
     bool h = max(a.x, a.z) > max(a.y, a.w); // max(horizontal) > max(vertical)
 
@@ -50,8 +50,8 @@ void main() {
 
     // We exploit bilinear filtering to mix current pixel with the chosen
     // neighbor:
-    color = blendingWeight.x * texture2D(uTexture, blendingCoord.xy); // LinearSampler
-    color += blendingWeight.y * texture2D(uTexture, blendingCoord.zw); // LinearSampler
+    color = blendingWeight.x * texture2D(uColorTexture, blendingCoord.xy); // LinearSampler
+    color += blendingWeight.y * texture2D(uColorTexture, blendingCoord.zw); // LinearSampler
   }
 
   gl_FragColor = color;

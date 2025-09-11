@@ -2,7 +2,7 @@
  * Luma Edge Detection
  *
  * IMPORTANT NOTICE: luma edge detection requires gamma-corrected colors, and
- * thus 'uTexture' should be a non-sRGB texture.
+ * thus 'uColorTexture' should be a non-sRGB texture.
  */
 
 precision highp float;
@@ -22,7 +22,7 @@ precision highp float;
     #define SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR 2.0
   #endif
 
-  uniform sampler2D uTexture;
+  uniform sampler2D uColorTexture;
 #endif
 
 varying vec2 vTexCoord0;
@@ -160,9 +160,9 @@ void main() {
   #ifdef SMAA_EDGES_DEPTH
     color.xy = SMAADepthEdgeDetection(vTexCoord0, vOffset, uDepthTexture);
   #elif defined(SMAA_EDGES_COLOR)
-    color.xy = SMAAColorEdgeDetection(vTexCoord0, vOffset, uTexture);
+    color.xy = SMAAColorEdgeDetection(vTexCoord0, vOffset, uColorTexture);
   #elif defined(SMAA_EDGES_LUMA)
-    color.xy = SMAALumaEdgeDetectionPS(vTexCoord0, vOffset, uTexture);
+    color.xy = SMAALumaEdgeDetectionPS(vTexCoord0, vOffset, uColorTexture);
   #endif
 
   gl_FragColor = color;

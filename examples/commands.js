@@ -175,7 +175,7 @@ const ready = async () =>
           1 / regl._gl.drawingBufferWidth,
           1 / regl._gl.drawingBufferHeight,
         ],
-        uTexture: FBO.SMAA,
+        uColorTexture: FBO.SMAA,
       },
       depth: {
         enable: false,
@@ -202,7 +202,7 @@ const ready = async () =>
           1 / regl._gl.drawingBufferWidth,
           1 / regl._gl.drawingBufferHeight,
         ],
-        uTexture: FBO.SMAA,
+        uColorTexture: FBO.SMAA,
       },
       depth: {
         enable: false,
@@ -258,7 +258,7 @@ const ready = async () =>
           1 / regl._gl.drawingBufferWidth,
           1 / regl._gl.drawingBufferHeight,
         ],
-        uTexture: FBO.SMAA,
+        uColorTexture: FBO.SMAA,
         uBlendTexture: FBO.weights,
       },
       depth: {
