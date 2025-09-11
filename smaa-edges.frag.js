@@ -4,12 +4,48 @@ export default /* glsl */ `precision highp float;
   #define SMAA_THRESHOLD 0.1
 #endif
 
+#ifndef SMAA_PREDICATION
+  #define SMAA_PREDICATION 0
+#endif
+
+/**
+ * Threshold to be used in the additional predication buffer.
+ *
+ * Range: depends on the input, so you'll have to find the magic number that
+ * works for you.
+ */
+#ifndef SMAA_PREDICATION_THRESHOLD
+  #define SMAA_PREDICATION_THRESHOLD 0.01
+#endif
+
+/**
+ * How much to scale the global threshold used for luma or color edge
+ * detection when using predication.
+ *
+ * Range: [1, 5]
+ */
+#ifndef SMAA_PREDICATION_SCALE
+  #define SMAA_PREDICATION_SCALE 2.0
+#endif
+
+/**
+ * How much to locally decrease the threshold.
+ *
+ * Range: [0, 1]
+ */
+#ifndef SMAA_PREDICATION_STRENGTH
+  #define SMAA_PREDICATION_STRENGTH 0.4
+#endif
+
+#if defined(SMAA_EDGES_DEPTH) || SMAA_PREDICATION
+  uniform sampler2D uDepthTexture;
+#endif
+
 #ifdef SMAA_EDGES_DEPTH
   #ifndef SMAA_DEPTH_THRESHOLD
     #define SMAA_DEPTH_THRESHOLD (0.1 * SMAA_THRESHOLD)
   #endif
 
-  uniform sampler2D uDepthTexture;
 #else
   #ifndef SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR
     #define SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR 2.0
@@ -21,7 +57,7 @@ export default /* glsl */ `precision highp float;
 varying vec2 vTexCoord0;
 varying vec4 vOffset[3];
 
-#ifdef SMAA_EDGES_DEPTH
+#if defined(SMAA_EDGES_DEPTH) || SMAA_PREDICATION
   /**
   * Gathers current pixel, and the top-left neighbors.
   */
@@ -32,7 +68,18 @@ varying vec4 vOffset[3];
 
     return vec3(P, Pleft, Ptop);
   }
+#endif
 
+#if SMAA_PREDICATION
+  vec2 SMAACalculatePredicatedThreshold(vec2 texcoord, vec4 offset[3], sampler2D predicationTex) {
+    vec3 neighbours = SMAAGatherNeighbours(texcoord, offset, predicationTex);
+    vec2 delta = abs(neighbours.xx - neighbours.yz);
+    vec2 edges = step(SMAA_PREDICATION_THRESHOLD, delta);
+    return SMAA_PREDICATION_SCALE * SMAA_THRESHOLD * (1.0 - SMAA_PREDICATION_STRENGTH * edges);
+  }
+#endif
+
+#ifdef SMAA_EDGES_DEPTH
   vec2 SMAADepthEdgeDetection(vec2 texcoord, vec4 offset[3], sampler2D depthTex) {
     vec3 neighbours = SMAAGatherNeighbours(texcoord, offset, depthTex);
     vec2 delta = abs(neighbours.xx - vec2(neighbours.y, neighbours.z));
@@ -46,8 +93,16 @@ varying vec4 vOffset[3];
 #endif
 
 #ifdef SMAA_EDGES_LUMA
-  vec2 SMAALumaEdgeDetection(vec2 texcoord, vec4 offset[3], sampler2D colorTex) {
+  vec2 SMAALumaEdgeDetection(vec2 texcoord, vec4 offset[3], sampler2D colorTex
+  #if SMAA_PREDICATION
+  , sampler2D predicationTex
+  #endif
+  ) {
+    #if SMAA_PREDICATION
+    vec2 threshold = SMAACalculatePredicatedThreshold(texcoord, offset, predicationTex);
+    #else
     vec2 threshold = vec2(SMAA_THRESHOLD);
+    #endif
 
     // Calculate lumas:
     vec3 weights = vec3(0.2126, 0.7152, 0.0722);
@@ -90,9 +145,17 @@ varying vec4 vOffset[3];
 #endif
 
 #ifdef SMAA_EDGES_COLOR
-  vec2 SMAAColorEdgeDetection(vec2 texcoord, vec4 offset[3], sampler2D colorTex) {
+  vec2 SMAAColorEdgeDetection(vec2 texcoord, vec4 offset[3], sampler2D colorTex
+  #if SMAA_PREDICATION
+  , sampler2D predicationTex
+  #endif
+  ) {
     // Calculate the threshold:
+    #if SMAA_PREDICATION
+    vec2 threshold = SMAACalculatePredicatedThreshold(texcoord, offset, predicationTex);
+    #else
     vec2 threshold = vec2(SMAA_THRESHOLD);
+    #endif
 
     // Calculate color deltas:
     vec4 delta;
@@ -151,9 +214,17 @@ void main() {
   #ifdef SMAA_EDGES_DEPTH
     color.xy = SMAADepthEdgeDetection(vTexCoord0, vOffset, uDepthTexture);
   #elif defined(SMAA_EDGES_LUMA)
-    color.xy = SMAALumaEdgeDetection(vTexCoord0, vOffset, uColorTexture);
+    color.xy = SMAALumaEdgeDetection(vTexCoord0, vOffset, uColorTexture
+      #if SMAA_PREDICATION
+      , uDepthTexture
+      #endif
+    );
   #elif defined(SMAA_EDGES_COLOR)
-    color.xy = SMAAColorEdgeDetection(vTexCoord0, vOffset, uColorTexture);
+    color.xy = SMAAColorEdgeDetection(vTexCoord0, vOffset, uColorTexture
+      #if SMAA_PREDICATION
+      , uDepthTexture
+      #endif
+    );
   #endif
 
   gl_FragColor = color;
