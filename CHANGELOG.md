@@ -1,6 +1,23 @@
 # Changelog
 
-All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
+
+# [3.0.0](https://github.com/dmnsgn/glsl-smaa/compare/v2.0.0...v3.0.0) (2025-09-11)
+
+
+### Features
+
+* add js exports ([8666f0a](https://github.com/dmnsgn/glsl-smaa/commit/8666f0a69831bfdbcbc6cbe00d70575659cc9428))
+* add SMAA_PREDICATION ([3360a14](https://github.com/dmnsgn/glsl-smaa/commit/3360a147e3483e555033abbdfd855e473a60069c))
+* combine edges detection into one shader ([f1a84fd](https://github.com/dmnsgn/glsl-smaa/commit/f1a84fd4085dbf571f9a6b50b4e8115d97f98300))
+* prefix uniforms + use uTexelSize/uViewportSize instead of SMAA_RT_METRICS ([43b5b36](https://github.com/dmnsgn/glsl-smaa/commit/43b5b3652c449f7260c888e7595af9c3a86417e8))
+
+
+### Reverts
+
+* rename uTexture to uColorTexture ([4fe1b00](https://github.com/dmnsgn/glsl-smaa/commit/4fe1b0002a023dc32931d958825583d819a0c533))
+
+
 
 # 2.0.0 (2021-03-31)
 
